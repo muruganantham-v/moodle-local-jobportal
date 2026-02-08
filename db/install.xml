@@ -1,0 +1,253 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<XMLDB PATH="local/jobportal/db" VERSION="2026020504" COMMENT="XMLDB file for Moodle local/jobportal"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd"
+>
+  <TABLES>
+    <TABLE NAME="local_jobportal_companies" COMMENT="Company profiles managed by job posters">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="website" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="companynameidx" UNIQUE="false" FIELDS="name"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_jobs" COMMENT="Job postings table">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="description" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="company" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="companyid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="location" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="jobtype" TYPE="char" LENGTH="50" NOTNULL="true" SEQUENCE="false" COMMENT="Full-time, Part-time, Internship, etc."/>
+        <FIELD NAME="salary" TYPE="char" LENGTH="100" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="salarymodel" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="custom" SEQUENCE="false" COMMENT="fixed, range, progressive, undisclosed, custom"/>
+        <FIELD NAME="salarycurrency" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="INR" SEQUENCE="false"/>
+        <FIELD NAME="salaryperiod" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="annual" SEQUENCE="false" COMMENT="annual, monthly"/>
+        <FIELD NAME="salarymin" TYPE="number" LENGTH="12" NOTNULL="false" DECIMALS="2" SEQUENCE="false"/>
+        <FIELD NAME="salarymax" TYPE="number" LENGTH="12" NOTNULL="false" DECIMALS="2" SEQUENCE="false"/>
+        <FIELD NAME="salaryminannual" TYPE="number" LENGTH="12" NOTNULL="false" DECIMALS="2" SEQUENCE="false"/>
+        <FIELD NAME="salarymaxannual" TYPE="number" LENGTH="12" NOTNULL="false" DECIMALS="2" SEQUENCE="false"/>
+        <FIELD NAME="deadline" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="requirements" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="status" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false" COMMENT="1=active, 0=inactive"/>
+        <FIELD NAME="postedby" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="companyid" TYPE="foreign" FIELDS="companyid" REFTABLE="local_jobportal_companies" REFFIELDS="id"/>
+        <KEY NAME="postedby" TYPE="foreign" FIELDS="postedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="companyididx" UNIQUE="false" FIELDS="companyid"/>
+        <INDEX NAME="jobstatusidx" UNIQUE="false" FIELDS="status"/>
+        <INDEX NAME="jobtimecreatedidx" UNIQUE="false" FIELDS="timecreated"/>
+        <INDEX NAME="jobdeadlineidx" UNIQUE="false" FIELDS="deadline"/>
+        <INDEX NAME="jobtimemodifiedidx" UNIQUE="false" FIELDS="timemodified"/>
+        <INDEX NAME="jobstatuscreatedidx" UNIQUE="false" FIELDS="status,timecreated"/>
+        <INDEX NAME="jobsalaryminannidx" UNIQUE="false" FIELDS="salaryminannual"/>
+        <INDEX NAME="jobsalarymaxannidx" UNIQUE="false" FIELDS="salarymaxannual"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_job_salary_stages" COMMENT="Progressive salary stages for jobs">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="jobid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="stagelabel" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="amount" TYPE="number" LENGTH="12" NOTNULL="true" DECIMALS="2" SEQUENCE="false"/>
+        <FIELD NAME="period" TYPE="char" LENGTH="10" NOTNULL="true" DEFAULT="annual" SEQUENCE="false"/>
+        <FIELD NAME="conditiontext" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="jobsalarystagejobfk" TYPE="foreign" FIELDS="jobid" REFTABLE="local_jobportal_jobs" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="jobsalarystagejobsortidx" UNIQUE="false" FIELDS="jobid, sortorder"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_stages" COMMENT="Recruitment stages">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="shortname" TYPE="char" LENGTH="100" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="displayname" TYPE="char" LENGTH="255" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="sortorder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="isterminal" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="isactive" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="1" SEQUENCE="false"/>
+        <FIELD NAME="isinternal" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="hasscheduledate" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="stageshortnameuniq" UNIQUE="true" FIELDS="shortname"/>
+      </INDEXES>
+    </TABLE>
+    
+    <TABLE NAME="local_jobportal_applications" COMMENT="Student job applications">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="jobid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="coverletter" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="resume" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false" COMMENT="File path to resume"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="50" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="Post-shortlisting stage/status"/>
+        <FIELD NAME="shortliststatus" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="Shortlist decision: pending, shortlisted, notshortlisted"/>
+        <FIELD NAME="currentstageid" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="screeningat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="interviewscheduledat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="interviewcompletedat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="offermadeat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="jobid" TYPE="foreign" FIELDS="jobid" REFTABLE="local_jobportal_jobs" REFFIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="appcurrentstagefk" TYPE="foreign" FIELDS="currentstageid" REFTABLE="local_jobportal_stages" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="jobid-userid" UNIQUE="true" FIELDS="jobid, userid"/>
+        <INDEX NAME="appjobidtimeidx" UNIQUE="false" FIELDS="jobid, timecreated"/>
+        <INDEX NAME="appshortlistidx" UNIQUE="false" FIELDS="shortliststatus"/>
+        <INDEX NAME="appstatusidx" UNIQUE="false" FIELDS="status"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_appstage_events" COMMENT="Stage transition history for applications">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="applicationid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="stageid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="changedby" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="notes" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="scheduledat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="schedulestatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="scheduled" SEQUENCE="false" COMMENT="scheduled, rescheduled, completed, cancelled, noshow"/>
+        <FIELD NAME="roundoutcome" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending, cleared, notcleared"/>
+        <FIELD NAME="schedulemode" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="online, offline, hybrid"/>
+        <FIELD NAME="schedulelink" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="schedulevenue" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="scheduleduration" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Duration in minutes"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="appeventappfk" TYPE="foreign" FIELDS="applicationid" REFTABLE="local_jobportal_applications" REFFIELDS="id"/>
+        <KEY NAME="appeventstagefk" TYPE="foreign" FIELDS="stageid" REFTABLE="local_jobportal_stages" REFFIELDS="id"/>
+        <KEY NAME="appeventuserfk" TYPE="foreign" FIELDS="changedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_appnotes" COMMENT="Manager notes on applications">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="applicationid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="note" TYPE="text" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="appnoteappfk" TYPE="foreign" FIELDS="applicationid" REFTABLE="local_jobportal_applications" REFFIELDS="id"/>
+        <KEY NAME="appnoteuserfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+    
+    <TABLE NAME="local_jobportal_profiles" COMMENT="Student profiles for job portal">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="skills" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="experience" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="education" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="resume" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="resumestatus" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="notsubmitted" SEQUENCE="false" COMMENT="Resume review status"/>
+        <FIELD NAME="resumerating" TYPE="int" LENGTH="2" NOTNULL="false" SEQUENCE="false" COMMENT="Manager rating from 1 to 5"/>
+        <FIELD NAME="resumefeedback" TYPE="text" NOTNULL="false" SEQUENCE="false" COMMENT="Manager feedback on resume"/>
+        <FIELD NAME="resumereviewedby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Manager who last reviewed the resume"/>
+        <FIELD NAME="resumereviewedat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false" COMMENT="Timestamp of last resume review"/>
+        <FIELD NAME="resumeapprovalmode" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="allrequired" SEQUENCE="false" COMMENT="Approval rule: anyone, allrequired"/>
+        <FIELD NAME="portfolio" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userid" TYPE="foreign-unique" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="profresumereviewbyfk" TYPE="foreign" FIELDS="resumereviewedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_resume_review_hist" COMMENT="Resume review history events for student profiles">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="profileid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false" COMMENT="Actor who updated resume review status"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="submitted" SEQUENCE="false"/>
+        <FIELD NAME="rating" TYPE="int" LENGTH="2" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="feedback" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="action" TYPE="char" LENGTH="30" NOTNULL="true" DEFAULT="managerreview" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="resrevprofilefk" TYPE="foreign" FIELDS="profileid" REFTABLE="local_jobportal_profiles" REFFIELDS="id"/>
+        <KEY NAME="resrevuserfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="resrevprofiletimeidx" UNIQUE="false" FIELDS="profileid, timecreated"/>
+      </INDEXES>
+    </TABLE>
+
+    <TABLE NAME="local_jobportal_resume_assignments" COMMENT="Resume review assignments and outcomes by reviewer">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="profileid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="resumesignature" TYPE="char" LENGTH="40" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="reviewerid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="assignedby" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="assigned" SEQUENCE="false" COMMENT="assigned, inreview, approved, needsrework"/>
+        <FIELD NAME="rating" TYPE="int" LENGTH="2" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="feedback" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timeassigned" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timereviewed" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="resasgprofilefk" TYPE="foreign" FIELDS="profileid" REFTABLE="local_jobportal_profiles" REFFIELDS="id"/>
+        <KEY NAME="resasgreviewerfk" TYPE="foreign" FIELDS="reviewerid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="resasgassignerfk" TYPE="foreign" FIELDS="assignedby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+      <INDEXES>
+        <INDEX NAME="resasgprofversrevuniq" UNIQUE="true" FIELDS="profileid, resumesignature, reviewerid"/>
+        <INDEX NAME="resasgreviewerstatusidx" UNIQUE="false" FIELDS="reviewerid, status"/>
+      </INDEXES>
+    </TABLE>
+
+  </TABLES>
+</XMLDB>

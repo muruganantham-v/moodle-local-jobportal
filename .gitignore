@@ -1,0 +1,33 @@
+# macOS
+.DS_Store
+
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Environment and secrets
+.env
+.env.*
+*.env
+*.env.*
+scripts/deploy_cluster.env
+!*.env.example
+!.env.example
+
+# Logs and runtime artifacts
+*.log
+logs/
+tmp/
+temp/
+
+# Composer / Node artifacts (if used locally)
+vendor/
+node_modules/
+
+# Test/cache outputs
+.phpunit.result.cache
+phpunit.xml
+phpunit.xml.dist.local

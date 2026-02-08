@@ -1,0 +1,1719 @@
+<?php
+// This file is part of Moodle - http://moodle.org/
+
+defined('MOODLE_INTERNAL') || die();
+
+/**
+ * Get one company record.
+ *
+ * @param int $companyid
+ * @return stdClass|false
+ */
+function local_jobportal_get_company($companyid) {
+    global $DB;
+
+    return $DB->get_record('local_jobportal_companies', array('id' => (int)$companyid));
+}
+
+/**
+ * Find an existing company by name (case-insensitive).
+ *
+ * @param string $name
+ * @param int $excludeid Optional company ID to exclude.
+ * @return stdClass|false
+ */
+function local_jobportal_find_company_by_name($name, $excludeid = 0) {
+    global $DB;
+
+    $trimmed = trim($name);
+    if ($trimmed === '') {
+        return false;
+    }
+
+    $params = array('name' => core_text::strtolower($trimmed));
+    $wheresql = 'LOWER(name) = :name';
+    if (!empty($excludeid)) {
+        $wheresql .= ' AND id <> :excludeid';
+        $params['excludeid'] = (int)$excludeid;
+    }
+
+    return $DB->get_record_select('local_jobportal_companies', $wheresql, $params, '*', IGNORE_MULTIPLE);
+}
+
+/**
+ * Get company options for form selectors.
+ *
+ * @return array<int,string>
+ */
+function local_jobportal_get_company_options() {
+    global $DB;
+
+    $companies = $DB->get_records('local_jobportal_companies', null, 'name ASC', 'id, name');
+    $options = array();
+    $namecounts = array();
+    $systemcontext = context_system::instance();
+
+    foreach ($companies as $company) {
+        $normalized = core_text::strtolower(trim((string)$company->name));
+        if (!isset($namecounts[$normalized])) {
+            $namecounts[$normalized] = 0;
+        }
+        $namecounts[$normalized]++;
+    }
+
+    foreach ($companies as $company) {
+        $label = format_string($company->name, true, array('context' => $systemcontext));
+        $normalized = core_text::strtolower(trim((string)$company->name));
+        if (!empty($namecounts[$normalized]) && $namecounts[$normalized] > 1) {
+            $label .= ' (#' . (int)$company->id . ')';
+        }
+        $options[(int)$company->id] = $label;
+    }
+
+    return $options;
+}
+
+/**
+ * Build company statistics.
+ *
+ * @param int $companyid
+ * @return stdClass
+ */
+function local_jobportal_get_company_stats($companyid) {
+    global $DB;
+
+    $stats = new stdClass();
+    $stats->jobsposted = (int)$DB->count_records('local_jobportal_jobs', array('companyid' => (int)$companyid));
+    $stats->activejobs = (int)$DB->count_records(
+        'local_jobportal_jobs',
+        array('companyid' => (int)$companyid, 'status' => 1)
+    );
+    $stats->applicationsreceived = (int)$DB->count_records_sql(
+        "SELECT COUNT(a.id)
+           FROM {local_jobportal_jobs} j
+      LEFT JOIN {local_jobportal_applications} a ON a.jobid = j.id
+          WHERE j.companyid = :companyid",
+        array('companyid' => (int)$companyid)
+    );
+
+    return $stats;
+}
+
+/**
+ * Get URL for an uploaded company logo.
+ *
+ * @param int $companyid
+ * @param context_system|null $context
+ * @return moodle_url|null
+ */
+function local_jobportal_get_company_logo_url($companyid, $context = null) {
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $fs = get_file_storage();
+    $files = $fs->get_area_files(
+        $context->id,
+        'local_jobportal',
+        'company_logo',
+        (int)$companyid,
+        'itemid, filepath, filename',
+        false
+    );
+
+    if (empty($files)) {
+        return null;
+    }
+
+    $file = reset($files);
+    return moodle_url::make_pluginfile_url(
+        $context->id,
+        'local_jobportal',
+        'company_logo',
+        (int)$companyid,
+        $file->get_filepath(),
+        $file->get_filename()
+    );
+}
+
+/**
+ * Format job type for display.
+ *
+ * @param string $jobtype
+ * @return string
+ */
+function local_jobportal_format_jobtype($jobtype) {
+    $supported = array('fulltime', 'parttime', 'internship', 'contract', 'freelance');
+    $normalized = core_text::strtolower(trim((string)$jobtype));
+    if (in_array($normalized, $supported, true)) {
+        return get_string($normalized, 'local_jobportal');
+    }
+    return format_string($jobtype, true, array('context' => context_system::instance()));
+}
+
+/**
+ * Salary model options used in job forms.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_salary_model_options() {
+    return array(
+        'fixed' => get_string('salarymodel_fixed', 'local_jobportal'),
+        'range' => get_string('salarymodel_range', 'local_jobportal'),
+        'progressive' => get_string('salarymodel_progressive', 'local_jobportal'),
+        'undisclosed' => get_string('salarymodel_undisclosed', 'local_jobportal'),
+        'custom' => get_string('salarymodel_custom', 'local_jobportal'),
+    );
+}
+
+/**
+ * Salary period options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_salary_period_options() {
+    return array(
+        'annual' => get_string('salaryperiod_annual', 'local_jobportal'),
+        'monthly' => get_string('salaryperiod_monthly', 'local_jobportal'),
+    );
+}
+
+/**
+ * Format a numeric salary amount with currency.
+ *
+ * @param float|int|string|null $amount
+ * @param string $currency
+ * @return string
+ */
+function local_jobportal_format_salary_amount($amount, $currency = 'INR') {
+    if ($amount === null || $amount === '') {
+        return '';
+    }
+    $amount = (float)$amount;
+    $decimals = (abs($amount - round($amount)) < 0.00001) ? 0 : 2;
+    $currency = trim((string)$currency);
+    if ($currency === '') {
+        $currency = 'INR';
+    }
+    return $currency . ' ' . number_format($amount, $decimals, '.', ',');
+}
+
+/**
+ * Normalize a salary amount to annual value.
+ *
+ * @param float|int|string|null $amount
+ * @param string $period
+ * @return float|null
+ */
+function local_jobportal_normalize_salary_to_annual($amount, $period) {
+    if ($amount === null || $amount === '' || !is_numeric($amount)) {
+        return null;
+    }
+    $amount = (float)$amount;
+    if ($amount < 0) {
+        return null;
+    }
+    $period = core_text::strtolower(trim((string)$period));
+    if ($period === 'monthly') {
+        return $amount * 12.0;
+    }
+    return $amount;
+}
+
+/**
+ * Parse progressive salary lines into structured stages.
+ * Expected format (one stage per line): Label|Amount|annual|Condition(optional)
+ *
+ * @param string $text
+ * @return array{stages:array<int,array<string,mixed>>,errors:array<int,string>}
+ */
+function local_jobportal_parse_salary_progression_text($text) {
+    $lines = preg_split('/\r\n|\r|\n/', (string)$text);
+    $stages = array();
+    $errors = array();
+    $allowedperiods = array('annual', 'monthly');
+    $sortorder = 1;
+
+    foreach ($lines as $index => $line) {
+        $line = trim((string)$line);
+        if ($line === '') {
+            continue;
+        }
+
+        $parts = array_map('trim', explode('|', $line));
+        if (count($parts) < 3) {
+            $errors[] = get_string('error:salaryprogressionline', 'local_jobportal', $index + 1);
+            continue;
+        }
+
+        $label = $parts[0];
+        $amountraw = $parts[1];
+        $period = core_text::strtolower($parts[2]);
+        $conditiontext = '';
+        if (count($parts) > 3) {
+            $conditiontext = trim(implode('|', array_slice($parts, 3)));
+        }
+
+        if ($label === '') {
+            $errors[] = get_string('error:salaryprogressionline', 'local_jobportal', $index + 1);
+            continue;
+        }
+        if (!is_numeric($amountraw) || (float)$amountraw <= 0) {
+            $errors[] = get_string('error:salaryprogressionamount', 'local_jobportal', $index + 1);
+            continue;
+        }
+        if (!in_array($period, $allowedperiods, true)) {
+            $errors[] = get_string('error:salaryprogressionperiod', 'local_jobportal', $index + 1);
+            continue;
+        }
+
+        $stages[] = array(
+            'stagelabel' => $label,
+            'amount' => (float)$amountraw,
+            'period' => $period,
+            'conditiontext' => $conditiontext,
+            'sortorder' => $sortorder,
+        );
+        $sortorder++;
+    }
+
+    return array('stages' => $stages, 'errors' => $errors);
+}
+
+/**
+ * Get salary stages for a job.
+ *
+ * @param int $jobid
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_job_salary_stages($jobid) {
+    global $DB;
+
+    return $DB->get_records('local_jobportal_job_salary_stages', array('jobid' => (int)$jobid), 'sortorder ASC, id ASC');
+}
+
+/**
+ * Replace salary stages for a job with provided rows.
+ *
+ * @param int $jobid
+ * @param array<int,array<string,mixed>> $stages
+ * @return void
+ */
+function local_jobportal_replace_job_salary_stages($jobid, $stages) {
+    global $DB;
+
+    $jobid = (int)$jobid;
+    $DB->delete_records('local_jobportal_job_salary_stages', array('jobid' => $jobid));
+
+    if (empty($stages)) {
+        return;
+    }
+
+    $now = time();
+    $sortorder = 1;
+    foreach ($stages as $stage) {
+        if (empty($stage['stagelabel']) || empty($stage['amount']) || empty($stage['period'])) {
+            continue;
+        }
+
+        $record = new stdClass();
+        $record->jobid = $jobid;
+        $record->stagelabel = trim((string)$stage['stagelabel']);
+        $record->amount = (float)$stage['amount'];
+        $record->period = core_text::strtolower(trim((string)$stage['period']));
+        $record->conditiontext = !empty($stage['conditiontext']) ? trim((string)$stage['conditiontext']) : null;
+        $record->sortorder = !empty($stage['sortorder']) ? (int)$stage['sortorder'] : $sortorder;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $DB->insert_record('local_jobportal_job_salary_stages', $record);
+        $sortorder++;
+    }
+}
+
+/**
+ * Build human-readable salary display text.
+ *
+ * @param string $salarymodel
+ * @param string $currency
+ * @param string $period
+ * @param float|int|string|null $salarymin
+ * @param float|int|string|null $salarymax
+ * @param string $displaytext
+ * @param array<int,stdClass|array<string,mixed>> $stages
+ * @return string
+ */
+function local_jobportal_build_salary_display($salarymodel, $currency, $period, $salarymin, $salarymax, $displaytext = '', $stages = array()) {
+    $displaytext = trim((string)$displaytext);
+    if ($displaytext !== '') {
+        return $displaytext;
+    }
+
+    $salarymodel = core_text::strtolower(trim((string)$salarymodel));
+    if ($salarymodel === 'undisclosed') {
+        return get_string('salaryundisclosed', 'local_jobportal');
+    }
+
+    $period = core_text::strtolower(trim((string)$period));
+    if ($period !== 'monthly' && $period !== 'annual') {
+        $period = 'annual';
+    }
+    $periodlabel = get_string('salaryperiod_' . $period, 'local_jobportal');
+
+    if ($salarymodel === 'fixed' && $salarymin !== null && $salarymin !== '' && is_numeric($salarymin)) {
+        return local_jobportal_format_salary_amount($salarymin, $currency) . ' / ' . $periodlabel;
+    }
+
+    if ($salarymodel === 'range' && $salarymin !== null && $salarymax !== null && is_numeric($salarymin) && is_numeric($salarymax)) {
+        return local_jobportal_format_salary_amount($salarymin, $currency) . ' - ' .
+            local_jobportal_format_salary_amount($salarymax, $currency) . ' / ' . $periodlabel;
+    }
+
+    if ($salarymodel === 'progressive' && !empty($stages)) {
+        $parts = array();
+        foreach ($stages as $stage) {
+            $label = '';
+            $amount = null;
+            $stageperiod = 'annual';
+            if (is_object($stage)) {
+                $label = !empty($stage->stagelabel) ? $stage->stagelabel : '';
+                $amount = $stage->amount ?? null;
+                $stageperiod = !empty($stage->period) ? $stage->period : 'annual';
+            } else if (is_array($stage)) {
+                $label = !empty($stage['stagelabel']) ? $stage['stagelabel'] : '';
+                $amount = $stage['amount'] ?? null;
+                $stageperiod = !empty($stage['period']) ? $stage['period'] : 'annual';
+            }
+
+            $stageperiod = core_text::strtolower(trim((string)$stageperiod));
+            if ($stageperiod !== 'monthly' && $stageperiod !== 'annual') {
+                $stageperiod = 'annual';
+            }
+            $chunk = local_jobportal_format_salary_amount($amount, $currency);
+            if ($chunk === '') {
+                continue;
+            }
+            $chunk .= ' / ' . get_string('salaryperiod_' . $stageperiod, 'local_jobportal');
+            if ($label !== '') {
+                $chunk = $label . ': ' . $chunk;
+            }
+            $parts[] = $chunk;
+        }
+
+        if (!empty($parts)) {
+            return implode('; ', $parts);
+        }
+        return get_string('salaryprogressivegeneric', 'local_jobportal');
+    }
+
+    return '';
+}
+
+/**
+ * Resolve job salary text for list/detail views.
+ *
+ * @param stdClass $job
+ * @param array<int,stdClass>|null $stages
+ * @return string
+ */
+function local_jobportal_get_job_salary_display($job, $stages = null) {
+    $salarymodel = !empty($job->salarymodel) ? core_text::strtolower((string)$job->salarymodel) : 'custom';
+
+    if (!empty($job->salary)) {
+        return trim((string)$job->salary);
+    }
+
+    if ($salarymodel === 'undisclosed') {
+        return get_string('salaryundisclosed', 'local_jobportal');
+    }
+
+    if ($stages === null && !empty($job->id) && !empty($job->salarymodel) &&
+            core_text::strtolower((string)$job->salarymodel) === 'progressive') {
+        $stages = local_jobportal_get_job_salary_stages((int)$job->id);
+    }
+    if ($stages === null) {
+        $stages = array();
+    }
+
+    return local_jobportal_build_salary_display(
+        $salarymodel,
+        !empty($job->salarycurrency) ? $job->salarycurrency : 'INR',
+        !empty($job->salaryperiod) ? $job->salaryperiod : 'annual',
+        $job->salarymin ?? null,
+        $job->salarymax ?? null,
+        '',
+        $stages
+    );
+}
+
+/**
+ * Resume status options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_resume_status_options() {
+    return array(
+        'notsubmitted' => get_string('resumestatus_notsubmitted', 'local_jobportal'),
+        'submitted' => get_string('resumestatus_submitted', 'local_jobportal'),
+        'underreview' => get_string('resumestatus_underreview', 'local_jobportal'),
+        'needsrework' => get_string('resumestatus_needsrework', 'local_jobportal'),
+        'approved' => get_string('resumestatus_approved', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize a resume status to supported values.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_normalize_resume_status($status) {
+    $normalized = core_text::strtolower(trim((string)$status));
+    $allowed = array_keys(local_jobportal_get_resume_status_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'notsubmitted';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve resume status badge class.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_resume_status_badge_class($status) {
+    $status = local_jobportal_normalize_resume_status($status);
+    switch ($status) {
+        case 'approved':
+            return 'badge badge-success';
+        case 'needsrework':
+            return 'badge badge-danger';
+        case 'underreview':
+            return 'badge badge-primary';
+        case 'submitted':
+            return 'badge badge-warning';
+        default:
+            return 'badge badge-secondary';
+    }
+}
+
+/**
+ * Build a deterministic signature of files in a profile resume area.
+ *
+ * @param int $profileid
+ * @param context_system|null $context
+ * @return string
+ */
+function local_jobportal_get_profile_resume_signature($profileid, $context = null) {
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $fs = get_file_storage();
+    $files = $fs->get_area_files(
+        $context->id,
+        'local_jobportal',
+        'profile_resume',
+        (int)$profileid,
+        'filepath, filename, id',
+        false
+    );
+
+    if (empty($files)) {
+        return '';
+    }
+
+    $parts = array();
+    foreach ($files as $file) {
+        $parts[] = $file->get_filepath() . $file->get_filename() . ':' . $file->get_contenthash();
+    }
+
+    sort($parts, SORT_STRING);
+    return sha1(implode('|', $parts));
+}
+
+/**
+ * Persist one resume review history event.
+ *
+ * @param int $profileid
+ * @param int $userid
+ * @param string $status
+ * @param int|null $rating
+ * @param string|null $feedback
+ * @param string $action
+ * @return void
+ */
+function local_jobportal_log_resume_review_history($profileid, $userid, $status, $rating = null, $feedback = null, $action = 'managerreview') {
+    global $DB;
+
+    $record = new stdClass();
+    $record->profileid = (int)$profileid;
+    $record->userid = (int)$userid;
+    $record->status = local_jobportal_normalize_resume_status($status);
+    $record->rating = $rating === null || $rating === '' ? null : (int)$rating;
+    $record->feedback = $feedback !== null && trim((string)$feedback) !== '' ? trim((string)$feedback) : null;
+    $record->action = core_text::strtolower(trim((string)$action));
+    if ($record->action === '') {
+        $record->action = 'managerreview';
+    }
+    $record->timecreated = time();
+
+    $DB->insert_record('local_jobportal_resume_review_hist', $record);
+}
+
+/**
+ * Get stored resume file for a profile.
+ *
+ * @param int $profileid
+ * @param context_system|null $context
+ * @return stored_file|null
+ */
+function local_jobportal_get_profile_resume_file($profileid, $context = null) {
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $fs = get_file_storage();
+    $files = $fs->get_area_files(
+        $context->id,
+        'local_jobportal',
+        'profile_resume',
+        (int)$profileid,
+        'itemid, filepath, filename',
+        false
+    );
+
+    if (empty($files)) {
+        return null;
+    }
+
+    return reset($files);
+}
+
+/**
+ * Check if a resume file can be previewed inline in browser.
+ *
+ * @param stored_file $file
+ * @return bool
+ */
+function local_jobportal_resume_file_is_previewable($file) {
+    $filename = core_text::strtolower((string)$file->get_filename());
+    $mimetype = core_text::strtolower((string)$file->get_mimetype());
+
+    return $mimetype === 'application/pdf' || substr($filename, -4) === '.pdf';
+}
+
+/**
+ * Get URL for a profile resume file.
+ *
+ * @param int $profileid
+ * @param context_system|null $context
+ * @param bool $forcedownload
+ * @return moodle_url|null
+ */
+function local_jobportal_get_profile_resume_url($profileid, $context = null, $forcedownload = false) {
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $file = local_jobportal_get_profile_resume_file((int)$profileid, $context);
+    if (!$file) {
+        return null;
+    }
+    return moodle_url::make_pluginfile_url(
+        $context->id,
+        'local_jobportal',
+        'profile_resume',
+        (int)$profileid,
+        $file->get_filepath(),
+        $file->get_filename(),
+        $forcedownload
+    );
+}
+
+/**
+ * Check whether a user has uploaded a resume in their profile.
+ *
+ * @param int $userid
+ * @return bool
+ */
+function local_jobportal_user_has_profile_resume($userid) {
+    global $DB;
+
+    $profile = $DB->get_record('local_jobportal_profiles', array('userid' => (int)$userid), 'id');
+    if (!$profile) {
+        return false;
+    }
+
+    return local_jobportal_get_profile_resume_url((int)$profile->id) !== null;
+}
+
+/**
+ * Resume approval mode options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_resume_approval_mode_options() {
+    return array(
+        'anyone' => get_string('resumeapproval_anyone', 'local_jobportal'),
+        'allrequired' => get_string('resumeapproval_allrequired', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize resume approval mode.
+ *
+ * @param string $mode
+ * @return string
+ */
+function local_jobportal_normalize_resume_approval_mode($mode) {
+    $normalized = core_text::strtolower(trim((string)$mode));
+    $allowed = array_keys(local_jobportal_get_resume_approval_mode_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'allrequired';
+    }
+    return $normalized;
+}
+
+/**
+ * Resume assignment status options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_resume_assignment_status_options() {
+    return array(
+        'assigned' => get_string('resumeassign_assigned', 'local_jobportal'),
+        'inreview' => get_string('resumeassign_inreview', 'local_jobportal'),
+        'approved' => get_string('resumeassign_approved', 'local_jobportal'),
+        'needsrework' => get_string('resumeassign_needsrework', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize resume assignment status.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_normalize_resume_assignment_status($status) {
+    $normalized = core_text::strtolower(trim((string)$status));
+    $allowed = array_keys(local_jobportal_get_resume_assignment_status_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'assigned';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve badge class for resume assignment status.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_resume_assignment_badge_class($status) {
+    $status = local_jobportal_normalize_resume_assignment_status($status);
+    if ($status === 'approved') {
+        return 'badge badge-success';
+    }
+    if ($status === 'needsrework') {
+        return 'badge badge-danger';
+    }
+    if ($status === 'inreview') {
+        return 'badge badge-primary';
+    }
+    return 'badge badge-secondary';
+}
+
+/**
+ * Convert resume status into reviewer assignment status.
+ *
+ * @param string $resumestatus
+ * @return string
+ */
+function local_jobportal_resume_status_to_assignment_status($resumestatus) {
+    $resumestatus = local_jobportal_normalize_resume_status($resumestatus);
+    if ($resumestatus === 'approved') {
+        return 'approved';
+    }
+    if ($resumestatus === 'needsrework') {
+        return 'needsrework';
+    }
+    if ($resumestatus === 'underreview') {
+        return 'inreview';
+    }
+    return 'assigned';
+}
+
+/**
+ * Get reviewers who can review resumes.
+ *
+ * @param context_system|null $context
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_resume_reviewers($context = null) {
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $users = get_users_by_capability(
+        $context,
+        'local/jobportal:reviewresumes',
+        'u.id, u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.email',
+        'u.lastname ASC, u.firstname ASC'
+    );
+    if (!$users) {
+        return array();
+    }
+
+    return $users;
+}
+
+/**
+ * Get reviewer options for forms.
+ *
+ * @param context_system|null $context
+ * @return array<int,string>
+ */
+function local_jobportal_get_resume_reviewer_options($context = null) {
+    $reviewers = local_jobportal_get_resume_reviewers($context);
+    $options = array();
+    foreach ($reviewers as $reviewer) {
+        $label = fullname($reviewer);
+        if (!empty($reviewer->email)) {
+            $label .= ' (' . $reviewer->email . ')';
+        }
+        $options[(int)$reviewer->id] = $label;
+    }
+    return $options;
+}
+
+/**
+ * Get assignment summary for a profile and resume version.
+ *
+ * @param stdClass $profile
+ * @param string $resumesignature
+ * @return stdClass
+ */
+function local_jobportal_get_resume_assignment_summary($profile, $resumesignature) {
+    global $DB;
+
+    $summary = (object)array(
+        'total' => 0,
+        'assigned' => 0,
+        'inreview' => 0,
+        'approved' => 0,
+        'needsrework' => 0,
+        'pending' => 0,
+        'mode' => local_jobportal_normalize_resume_approval_mode(
+            property_exists($profile, 'resumeapprovalmode') ? $profile->resumeapprovalmode : 'allrequired'
+        ),
+        'status' => 'notsubmitted',
+    );
+
+    if ($resumesignature === '') {
+        return $summary;
+    }
+
+    $summary->status = 'submitted';
+    $sql = "SELECT status, COUNT(1) AS totalcount
+              FROM {local_jobportal_resume_assignments}
+             WHERE profileid = :profileid
+               AND resumesignature = :resumesignature
+          GROUP BY status";
+    $rows = $DB->get_records_sql($sql, array(
+        'profileid' => (int)$profile->id,
+        'resumesignature' => $resumesignature,
+    ));
+    foreach ($rows as $row) {
+        $status = local_jobportal_normalize_resume_assignment_status($row->status);
+        $summary->{$status} = (int)$row->totalcount;
+        $summary->total += (int)$row->totalcount;
+    }
+
+    $summary->pending = (int)$summary->assigned + (int)$summary->inreview;
+
+    if ($summary->needsrework > 0) {
+        $summary->status = 'needsrework';
+    } else if ($summary->mode === 'allrequired') {
+        if ($summary->total > 0 && $summary->approved >= $summary->total) {
+            $summary->status = 'approved';
+        } else if ($summary->total > 0) {
+            $summary->status = 'underreview';
+        }
+    } else {
+        if ($summary->approved > 0) {
+            $summary->status = 'approved';
+        } else if ($summary->total > 0) {
+            $summary->status = 'underreview';
+        }
+    }
+
+    return $summary;
+}
+
+/**
+ * Fetch assignments for a profile and resume version.
+ *
+ * @param int $profileid
+ * @param string $resumesignature
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_resume_assignments_for_version($profileid, $resumesignature) {
+    global $DB;
+
+    if ($resumesignature === '') {
+        return array();
+    }
+
+    $sql = "SELECT a.*, u.firstname, u.lastname, u.firstnamephonetic, u.lastnamephonetic, u.middlename, u.alternatename, u.email,
+                   ua.firstname AS assignerfirstname, ua.lastname AS assignerlastname
+              FROM {local_jobportal_resume_assignments} a
+              JOIN {user} u ON u.id = a.reviewerid
+              JOIN {user} ua ON ua.id = a.assignedby
+             WHERE a.profileid = :profileid
+               AND a.resumesignature = :resumesignature
+          ORDER BY a.timemodified DESC, a.id DESC";
+    return $DB->get_records_sql($sql, array(
+        'profileid' => (int)$profileid,
+        'resumesignature' => $resumesignature,
+    ));
+}
+
+/**
+ * Recompute profile resume status from current reviewer assignments.
+ *
+ * @param int $profileid
+ * @param context_system|null $context
+ * @return stdClass
+ */
+function local_jobportal_refresh_profile_resume_review($profileid, $context = null) {
+    global $DB;
+
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $profile = $DB->get_record('local_jobportal_profiles', array('id' => (int)$profileid), '*', MUST_EXIST);
+    $resumesignature = local_jobportal_get_profile_resume_signature((int)$profileid, $context);
+    $summary = local_jobportal_get_resume_assignment_summary($profile, $resumesignature);
+
+    $update = new stdClass();
+    $update->id = (int)$profile->id;
+    $update->resumestatus = $summary->status;
+    $update->timemodified = time();
+    $update->resumerating = null;
+    $update->resumefeedback = null;
+    $update->resumereviewedby = null;
+    $update->resumereviewedat = null;
+
+    if ($resumesignature !== '' && in_array($summary->status, array('approved', 'needsrework'), true)) {
+        $sql = "SELECT *
+                  FROM {local_jobportal_resume_assignments}
+                 WHERE profileid = :profileid
+                   AND resumesignature = :resumesignature
+                   AND status = :status
+              ORDER BY timereviewed DESC, timemodified DESC, id DESC";
+        $latest = $DB->get_record_sql($sql, array(
+            'profileid' => (int)$profile->id,
+            'resumesignature' => $resumesignature,
+            'status' => $summary->status,
+        ), IGNORE_MISSING);
+
+        if ($latest) {
+            $update->resumerating = $latest->rating === null ? null : (int)$latest->rating;
+            $update->resumefeedback = $latest->feedback;
+            $update->resumereviewedby = (int)$latest->reviewerid;
+            $update->resumereviewedat = !empty($latest->timereviewed) ? (int)$latest->timereviewed : (int)$latest->timemodified;
+        }
+    }
+
+    $changed = false;
+    foreach (array('resumestatus', 'resumerating', 'resumefeedback', 'resumereviewedby', 'resumereviewedat') as $field) {
+        $oldvalue = property_exists($profile, $field) ? $profile->{$field} : null;
+        $newvalue = $update->{$field};
+        if ($oldvalue != $newvalue) {
+            $changed = true;
+            break;
+        }
+    }
+
+    if ($changed) {
+        $DB->update_record('local_jobportal_profiles', $update);
+        $profile = $DB->get_record('local_jobportal_profiles', array('id' => (int)$profileid), '*', MUST_EXIST);
+    }
+
+    $summary->statuslabel = local_jobportal_get_resume_status_options()[$summary->status];
+    $summary->statusbadge = local_jobportal_resume_status_badge_class($summary->status);
+
+    return (object)array(
+        'profile' => $profile,
+        'resumesignature' => $resumesignature,
+        'summary' => $summary,
+    );
+}
+
+/**
+ * Assign reviewers to current resume version.
+ *
+ * @param int $profileid
+ * @param array<int,int> $reviewerids
+ * @param int $assignedby
+ * @param context_system|null $context
+ * @return int
+ */
+function local_jobportal_assign_resume_reviewers($profileid, $reviewerids, $assignedby, $context = null) {
+    global $DB;
+
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $resumesignature = local_jobportal_get_profile_resume_signature((int)$profileid, $context);
+    if ($resumesignature === '') {
+        return 0;
+    }
+
+    $reviewerids = array_values(array_unique(array_filter(array_map('intval', $reviewerids))));
+    $desiredreviewers = array();
+    foreach ($reviewerids as $reviewerid) {
+        if ($reviewerid > 0) {
+            $desiredreviewers[(int)$reviewerid] = true;
+        }
+    }
+
+    $existingassignments = $DB->get_records(
+        'local_jobportal_resume_assignments',
+        array('profileid' => (int)$profileid, 'resumesignature' => $resumesignature),
+        '',
+        'id, reviewerid'
+    );
+
+    $existingbyreviewer = array();
+    $removalids = array();
+    foreach ($existingassignments as $assignment) {
+        $reviewerid = (int)$assignment->reviewerid;
+        $existingbyreviewer[$reviewerid] = $assignment;
+        if (!isset($desiredreviewers[$reviewerid])) {
+            $removalids[] = (int)$assignment->id;
+        }
+    }
+
+    $changedcount = 0;
+    if (!empty($removalids)) {
+        $DB->delete_records_list('local_jobportal_resume_assignments', 'id', $removalids);
+        $changedcount += count($removalids);
+    }
+
+    $now = time();
+    $assignedcount = 0;
+    foreach (array_keys($desiredreviewers) as $reviewerid) {
+        if (isset($existingbyreviewer[$reviewerid])) {
+            continue;
+        }
+
+        $record = new stdClass();
+        $record->profileid = (int)$profileid;
+        $record->resumesignature = $resumesignature;
+        $record->reviewerid = (int)$reviewerid;
+        $record->assignedby = (int)$assignedby;
+        $record->status = 'assigned';
+        $record->rating = null;
+        $record->feedback = null;
+        $record->timeassigned = $now;
+        $record->timereviewed = null;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $DB->insert_record('local_jobportal_resume_assignments', $record);
+        $assignedcount++;
+        $changedcount++;
+    }
+
+    if ($changedcount > 0) {
+        local_jobportal_refresh_profile_resume_review((int)$profileid, $context);
+    }
+
+    return $assignedcount;
+}
+
+/**
+ * Save one reviewer decision for current resume version.
+ *
+ * @param int $profileid
+ * @param int $reviewerid
+ * @param string $resumestatus
+ * @param int|null $rating
+ * @param string|null $feedback
+ * @param string $action
+ * @param context_system|null $context
+ * @return stdClass
+ */
+function local_jobportal_save_resume_reviewer_decision(
+    $profileid,
+    $reviewerid,
+    $resumestatus,
+    $rating = null,
+    $feedback = null,
+    $action = 'reviewerreview',
+    $context = null
+) {
+    global $DB;
+
+    if (!$context) {
+        $context = context_system::instance();
+    }
+
+    $resumesignature = local_jobportal_get_profile_resume_signature((int)$profileid, $context);
+    if ($resumesignature === '') {
+        throw new moodle_exception('error:resumenotuploaded', 'local_jobportal');
+    }
+
+    $resumestatus = local_jobportal_normalize_resume_status($resumestatus);
+    $assignmentstatus = local_jobportal_resume_status_to_assignment_status($resumestatus);
+    $now = time();
+
+    $existing = $DB->get_record('local_jobportal_resume_assignments', array(
+        'profileid' => (int)$profileid,
+        'resumesignature' => $resumesignature,
+        'reviewerid' => (int)$reviewerid,
+    ));
+
+    if ($existing) {
+        $record = new stdClass();
+        $record->id = (int)$existing->id;
+        $record->status = $assignmentstatus;
+        $record->rating = $rating === null || $rating === '' ? null : (int)$rating;
+        $record->feedback = $feedback !== null && trim((string)$feedback) !== '' ? trim((string)$feedback) : null;
+        $record->timereviewed = in_array($assignmentstatus, array('approved', 'needsrework'), true) ? $now : null;
+        $record->timemodified = $now;
+        $DB->update_record('local_jobportal_resume_assignments', $record);
+    } else {
+        $record = new stdClass();
+        $record->profileid = (int)$profileid;
+        $record->resumesignature = $resumesignature;
+        $record->reviewerid = (int)$reviewerid;
+        $record->assignedby = (int)$reviewerid;
+        $record->status = $assignmentstatus;
+        $record->rating = $rating === null || $rating === '' ? null : (int)$rating;
+        $record->feedback = $feedback !== null && trim((string)$feedback) !== '' ? trim((string)$feedback) : null;
+        $record->timeassigned = $now;
+        $record->timereviewed = in_array($assignmentstatus, array('approved', 'needsrework'), true) ? $now : null;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $DB->insert_record('local_jobportal_resume_assignments', $record);
+    }
+
+    local_jobportal_log_resume_review_history(
+        (int)$profileid,
+        (int)$reviewerid,
+        $resumestatus,
+        $rating,
+        $feedback,
+        $action
+    );
+
+    return local_jobportal_refresh_profile_resume_review((int)$profileid, $context);
+}
+
+/**
+ * Default recruitment stage definitions.
+ *
+ * @return array<int,array<string,mixed>>
+ */
+function local_jobportal_default_stage_definitions() {
+    return array(
+        array('shortname' => 'pending', 'displayname' => get_string('pending', 'local_jobportal'), 'sortorder' => 10, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'internalshortlisted', 'displayname' => get_string('internalshortlisted', 'local_jobportal'), 'sortorder' => 15, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 1, 'hasscheduledate' => 0),
+        array('shortname' => 'screening', 'displayname' => get_string('screening', 'local_jobportal'), 'sortorder' => 20, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'shortlisted', 'displayname' => get_string('shortlisted', 'local_jobportal'), 'sortorder' => 25, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'notshortlisted', 'displayname' => get_string('notshortlisted', 'local_jobportal'), 'sortorder' => 26, 'isterminal' => 1, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'testscheduled', 'displayname' => get_string('testscheduled', 'local_jobportal'), 'sortorder' => 30, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 1),
+        array('shortname' => 'testdone', 'displayname' => get_string('testdone', 'local_jobportal'), 'sortorder' => 40, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'interviewscheduled', 'displayname' => get_string('interviewscheduled', 'local_jobportal'), 'sortorder' => 50, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 1),
+        array('shortname' => 'offermade', 'displayname' => get_string('offermade', 'local_jobportal'), 'sortorder' => 70, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'accepted', 'displayname' => get_string('accepted', 'local_jobportal'), 'sortorder' => 80, 'isterminal' => 1, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+        array('shortname' => 'rejected', 'displayname' => get_string('rejected', 'local_jobportal'), 'sortorder' => 90, 'isterminal' => 1, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
+    );
+}
+
+/**
+ * Ensure default recruitment stages exist.
+ *
+ * @return void
+ */
+function local_jobportal_ensure_default_stages() {
+    global $DB;
+
+    try {
+        $DB->get_records('local_jobportal_stages', null, '', 'id', 0, 1);
+    } catch (dml_exception $e) {
+        return;
+    }
+
+    $definitions = local_jobportal_default_stage_definitions();
+    foreach ($definitions as $definition) {
+        $existing = $DB->get_record('local_jobportal_stages', array('shortname' => $definition['shortname']));
+        if ($existing) {
+            continue;
+        }
+
+        $record = new stdClass();
+        $record->shortname = $definition['shortname'];
+        $record->displayname = $definition['displayname'];
+        $record->sortorder = (int)$definition['sortorder'];
+        $record->isterminal = (int)$definition['isterminal'];
+        $record->isactive = (int)$definition['isactive'];
+        $record->isinternal = (int)$definition['isinternal'];
+        $record->hasscheduledate = (int)$definition['hasscheduledate'];
+        $record->timecreated = time();
+        $record->timemodified = time();
+        $DB->insert_record('local_jobportal_stages', $record);
+    }
+}
+
+/**
+ * Get recruitment stages.
+ *
+ * @param bool $activeonly
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_recruitment_stages($activeonly = true) {
+    global $DB;
+
+    local_jobportal_ensure_default_stages();
+    $conditions = $activeonly ? array('isactive' => 1) : null;
+
+    try {
+        return $DB->get_records('local_jobportal_stages', $conditions, 'sortorder ASC, id ASC');
+    } catch (dml_exception $e) {
+        return array();
+    }
+}
+
+/**
+ * Get recruitment stage options for forms.
+ *
+ * @param bool $activeonly
+ * @param bool $includeinternal
+ * @param bool $markinternal
+ * @return array<int,string>
+ */
+function local_jobportal_get_recruitment_stage_options($activeonly = true, $includeinternal = true, $markinternal = false) {
+    $stages = local_jobportal_get_recruitment_stages($activeonly);
+    $options = array();
+    $systemcontext = context_system::instance();
+    foreach ($stages as $stage) {
+        if (!$includeinternal && !empty($stage->isinternal)) {
+            continue;
+        }
+
+        $label = format_string($stage->displayname, true, array('context' => $systemcontext));
+        if ($markinternal && !empty($stage->isinternal)) {
+            $label .= ' (' . get_string('internalstage', 'local_jobportal') . ')';
+        }
+        $options[(int)$stage->id] = $label;
+    }
+    return $options;
+}
+
+/**
+ * Get shortlist status options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_shortlist_status_options() {
+    return array(
+        'pending' => get_string('pending', 'local_jobportal'),
+        'internalshortlisted' => get_string('internalshortlisted', 'local_jobportal'),
+        'shortlisted' => get_string('shortlisted', 'local_jobportal'),
+        'notshortlisted' => get_string('notshortlisted', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize shortlist status to a supported value.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_normalize_shortlist_status($status) {
+    $normalized = core_text::strtolower(trim((string)$status));
+    $allowed = array_keys(local_jobportal_get_shortlist_status_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'pending';
+    }
+    return $normalized;
+}
+
+/**
+ * Schedule status options for stage events.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_schedule_status_options() {
+    return array(
+        'scheduled' => get_string('schedulestatus_scheduled', 'local_jobportal'),
+        'rescheduled' => get_string('schedulestatus_rescheduled', 'local_jobportal'),
+        'completed' => get_string('schedulestatus_completed', 'local_jobportal'),
+        'cancelled' => get_string('schedulestatus_cancelled', 'local_jobportal'),
+        'noshow' => get_string('schedulestatus_noshow', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize schedule status.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_normalize_schedule_status($status) {
+    $normalized = core_text::strtolower(trim((string)$status));
+    $allowed = array_keys(local_jobportal_get_schedule_status_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'scheduled';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve schedule status label.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_get_schedule_status_label($status) {
+    $status = local_jobportal_normalize_schedule_status($status);
+    $options = local_jobportal_get_schedule_status_options();
+    return isset($options[$status]) ? $options[$status] : $options['scheduled'];
+}
+
+/**
+ * Round outcome options for schedulable stage events.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_round_outcome_options() {
+    return array(
+        'pending' => get_string('roundoutcome_pending', 'local_jobportal'),
+        'cleared' => get_string('roundoutcome_cleared', 'local_jobportal'),
+        'notcleared' => get_string('roundoutcome_notcleared', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize round outcome.
+ *
+ * @param string $outcome
+ * @return string
+ */
+function local_jobportal_normalize_round_outcome($outcome) {
+    $normalized = core_text::strtolower(trim((string)$outcome));
+    $allowed = array_keys(local_jobportal_get_round_outcome_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'pending';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve round outcome label.
+ *
+ * @param string $outcome
+ * @return string
+ */
+function local_jobportal_get_round_outcome_label($outcome) {
+    $outcome = local_jobportal_normalize_round_outcome($outcome);
+    $options = local_jobportal_get_round_outcome_options();
+    return isset($options[$outcome]) ? $options[$outcome] : $options['pending'];
+}
+
+/**
+ * Schedule mode options for stage events.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_schedule_mode_options() {
+    return array(
+        'online' => get_string('schedulemode_online', 'local_jobportal'),
+        'offline' => get_string('schedulemode_offline', 'local_jobportal'),
+        'hybrid' => get_string('schedulemode_hybrid', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize schedule mode.
+ *
+ * @param string $mode
+ * @return string
+ */
+function local_jobportal_normalize_schedule_mode($mode) {
+    $normalized = core_text::strtolower(trim((string)$mode));
+    $allowed = array_keys(local_jobportal_get_schedule_mode_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return '';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve schedule mode label.
+ *
+ * @param string $mode
+ * @return string
+ */
+function local_jobportal_get_schedule_mode_label($mode) {
+    $mode = local_jobportal_normalize_schedule_mode($mode);
+    if ($mode === '') {
+        return '';
+    }
+    $options = local_jobportal_get_schedule_mode_options();
+    return isset($options[$mode]) ? $options[$mode] : '';
+}
+
+/**
+ * Resolve shortlist status for an application.
+ *
+ * @param stdClass $application
+ * @return string
+ */
+function local_jobportal_get_application_shortlist_status($application) {
+    if (property_exists($application, 'shortliststatus') && trim((string)$application->shortliststatus) !== '') {
+        return local_jobportal_normalize_shortlist_status($application->shortliststatus);
+    }
+
+    $status = core_text::strtolower(trim((string)$application->status));
+    if ($status === 'internalshortlisted') {
+        return 'internalshortlisted';
+    }
+    if ($status === 'notshortlisted') {
+        return 'notshortlisted';
+    }
+    // Legacy status kept for older records after Interview Done was removed from flow.
+    if ($status === 'interviewdone') {
+        return 'shortlisted';
+    }
+
+    $shortlistedstates = array_merge(array('shortlisted'), local_jobportal_get_post_shortlist_stage_shortnames());
+    if (in_array($status, $shortlistedstates, true)) {
+        return 'shortlisted';
+    }
+
+    return 'pending';
+}
+
+/**
+ * Resolve shortlist status that can be shown to applicants.
+ *
+ * @param stdClass $application
+ * @return string
+ */
+function local_jobportal_get_applicant_visible_shortlist_status($application) {
+    $status = local_jobportal_get_application_shortlist_status($application);
+    if ($status === 'internalshortlisted') {
+        return 'pending';
+    }
+    return $status;
+}
+
+/**
+ * Post-shortlist stage shortnames.
+ *
+ * @return array<int,string>
+ */
+function local_jobportal_get_post_shortlist_stage_shortnames() {
+    return array(
+        'testscheduled',
+        'testdone',
+        'interviewscheduled',
+        'offermade',
+        'accepted',
+        'rejected',
+    );
+}
+
+/**
+ * Get post-shortlist recruitment stages.
+ *
+ * @param bool $activeonly
+ * @param bool $includeinternal
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_post_shortlist_stages($activeonly = true, $includeinternal = true) {
+    $allowed = array_flip(local_jobportal_get_post_shortlist_stage_shortnames());
+    $stages = local_jobportal_get_recruitment_stages($activeonly);
+    $result = array();
+
+    foreach ($stages as $stage) {
+        if (!isset($allowed[$stage->shortname])) {
+            continue;
+        }
+        if (!$includeinternal && !empty($stage->isinternal)) {
+            continue;
+        }
+        $result[(int)$stage->id] = $stage;
+    }
+
+    return $result;
+}
+
+/**
+ * Get post-shortlist stage options for forms.
+ *
+ * @param bool $activeonly
+ * @param bool $includeinternal
+ * @param bool $markinternal
+ * @return array<int,string>
+ */
+function local_jobportal_get_post_shortlist_stage_options($activeonly = true, $includeinternal = true, $markinternal = false) {
+    $stages = local_jobportal_get_post_shortlist_stages($activeonly, $includeinternal);
+    $options = array();
+    $systemcontext = context_system::instance();
+
+    foreach ($stages as $stage) {
+        $label = format_string($stage->displayname, true, array('context' => $systemcontext));
+        if ($markinternal && !empty($stage->isinternal)) {
+            $label .= ' (' . get_string('internalstage', 'local_jobportal') . ')';
+        }
+        $options[(int)$stage->id] = $label;
+    }
+
+    return $options;
+}
+
+/**
+ * Resolve stage object for an application.
+ *
+ * @param stdClass $application
+ * @param array<int,stdClass>|null $stages
+ * @return stdClass|null
+ */
+function local_jobportal_get_application_stage($application, $stages = null) {
+    global $DB;
+
+    if (local_jobportal_get_application_shortlist_status($application) !== 'shortlisted') {
+        return null;
+    }
+
+    if ($stages === null) {
+        $stages = local_jobportal_get_recruitment_stages(false);
+    }
+
+    $allowed = array_flip(local_jobportal_get_post_shortlist_stage_shortnames());
+
+    if (!empty($application->currentstageid) && isset($stages[(int)$application->currentstageid])) {
+        $stage = $stages[(int)$application->currentstageid];
+        if (isset($allowed[$stage->shortname])) {
+            return $stage;
+        }
+    }
+
+    if (!empty($application->status)) {
+        $legacy = core_text::strtolower(trim((string)$application->status));
+        if (!isset($allowed[$legacy])) {
+            return null;
+        }
+
+        foreach ($stages as $stage) {
+            if ($stage->shortname === $legacy) {
+                return $stage;
+            }
+        }
+
+        $stage = $DB->get_record('local_jobportal_stages', array('shortname' => $legacy));
+        if ($stage) {
+            return $stage;
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Get stage events visible to applicants (non-internal only).
+ *
+ * @param array<int,stdClass> $events
+ * @param array<int,stdClass>|null $stages
+ * @return array<int,stdClass>
+ */
+function local_jobportal_get_applicant_visible_stage_events($events, $stages = null) {
+    if ($stages === null) {
+        $stages = local_jobportal_get_recruitment_stages(false);
+    }
+
+    $allowed = array_flip(local_jobportal_get_post_shortlist_stage_shortnames());
+    $visible = array();
+    foreach ($events as $event) {
+        $stageid = !empty($event->stageid) ? (int)$event->stageid : 0;
+        if (empty($stageid) || !isset($stages[$stageid])) {
+            continue;
+        }
+        if (!isset($allowed[$stages[$stageid]->shortname])) {
+            continue;
+        }
+        if (!empty($stages[$stageid]->isinternal)) {
+            continue;
+        }
+        $visible[] = $event;
+    }
+
+    return $visible;
+}
+
+/**
+ * Resolve the latest non-internal stage that can be shown to applicants.
+ *
+ * @param stdClass $application
+ * @param array<int,stdClass> $events
+ * @param array<int,stdClass>|null $stages
+ * @return stdClass|null
+ */
+function local_jobportal_get_applicant_visible_stage($application, $events = array(), $stages = null) {
+    if (local_jobportal_get_application_shortlist_status($application) !== 'shortlisted') {
+        return null;
+    }
+
+    if ($stages === null) {
+        $stages = local_jobportal_get_recruitment_stages(false);
+    }
+
+    $allowed = array_flip(local_jobportal_get_post_shortlist_stage_shortnames());
+    for ($index = count($events) - 1; $index >= 0; $index--) {
+        $event = $events[$index];
+        $stageid = !empty($event->stageid) ? (int)$event->stageid : 0;
+        if (empty($stageid) || !isset($stages[$stageid])) {
+            continue;
+        }
+        if (empty($stages[$stageid]->isinternal) && isset($allowed[$stages[$stageid]->shortname])) {
+            return $stages[$stageid];
+        }
+    }
+
+    $stage = local_jobportal_get_application_stage($application, $stages);
+    if ($stage && empty($stage->isinternal)) {
+        return $stage;
+    }
+
+    return null;
+}
+
+/**
+ * Require plugin-wide stylesheet.
+ *
+ * @return void
+ */
+function local_jobportal_require_styles() {
+    global $PAGE;
+
+    $PAGE->requires->css(new moodle_url('/local/jobportal/styles.css'));
+}
+
+/**
+ * Render a quick navigation bar for Job Portal pages.
+ *
+ * @param context $context
+ * @param string $current
+ * @param array<int,array<string,mixed>> $extralinks
+ * @return string
+ */
+function local_jobportal_render_navigation($context, $current = '', $extralinks = array()) {
+    $ismanager = has_capability('local/jobportal:postjobs', $context) ||
+        has_capability('local/jobportal:managejobs', $context) ||
+        has_capability('local/jobportal:viewapplications', $context) ||
+        has_capability('local/jobportal:managecompanyprofile', $context) ||
+        has_capability('local/jobportal:reviewresumes', $context) ||
+        has_capability('local/jobportal:assignresumereviewers', $context);
+    $canreviewresumes = has_capability('local/jobportal:reviewresumes', $context);
+    $canassignresumereviewers = has_capability('local/jobportal:assignresumereviewers', $context);
+
+    $links = array(
+        array(
+            'key' => 'index',
+            'label' => get_string('alljobs', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/index.php'),
+        ),
+    );
+
+    if (has_capability('local/jobportal:apply', $context) && !$ismanager) {
+        $links[] = array(
+            'key' => 'myapplications',
+            'label' => get_string('myapplications', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/myapplications.php'),
+        );
+        $links[] = array(
+            'key' => 'profile',
+            'label' => get_string('myprofile', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/profile.php'),
+        );
+    }
+
+    if (has_capability('local/jobportal:postjobs', $context)) {
+        $links[] = array(
+            'key' => 'post',
+            'label' => get_string('postjob', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/post.php'),
+        );
+    }
+
+    if (has_capability('local/jobportal:managejobs', $context)) {
+        $links[] = array(
+            'key' => 'dashboard',
+            'label' => get_string('managerdashboard', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/dashboard.php'),
+        );
+        $links[] = array(
+            'key' => 'jobsdashboard',
+            'label' => get_string('jobpostsdashboard', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/jobsdashboard.php'),
+        );
+        $links[] = array(
+            'key' => 'stages',
+            'label' => get_string('managestages', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/stages.php'),
+        );
+    }
+
+    if (has_capability('local/jobportal:managecompanyprofile', $context)) {
+        $links[] = array(
+            'key' => 'companies',
+            'label' => get_string('managecompanies', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/companyprofile.php'),
+        );
+    }
+
+    if ($canassignresumereviewers) {
+        $links[] = array(
+            'key' => 'resumequeue',
+            'label' => get_string('resumequeue', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/resume_queue.php'),
+        );
+    }
+
+    if ($canreviewresumes) {
+        $links[] = array(
+            'key' => 'myresumereviews',
+            'label' => get_string('myresumereviews', 'local_jobportal'),
+            'url' => new moodle_url('/local/jobportal/myreviews.php'),
+        );
+    }
+
+    foreach ($extralinks as $item) {
+        if (empty($item['url']) || empty($item['label'])) {
+            continue;
+        }
+        $links[] = $item;
+    }
+
+    $html = html_writer::start_tag('div', array('class' => 'card mb-3'));
+    $html .= html_writer::start_tag('div', array('class' => 'card-body py-2'));
+    $html .= html_writer::tag('strong', get_string('quicknavigation', 'local_jobportal') . ': ', array('class' => 'mr-2'));
+
+    foreach ($links as $link) {
+        $iscurrent = !empty($link['key']) && $link['key'] === $current;
+        $class = $iscurrent ? 'btn btn-sm btn-primary mr-2 mb-1' : 'btn btn-sm btn-outline-primary mr-2 mb-1';
+        $html .= html_writer::link($link['url'], $link['label'], array('class' => $class));
+    }
+
+    $html .= html_writer::end_tag('div');
+    $html .= html_writer::end_tag('div');
+
+    return $html;
+}
