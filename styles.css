@@ -11,6 +11,75 @@
     color: white !important;
     margin: 0;
 }
+.jp-header-main {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+.jp-header-main-left {
+    min-width: 220px;
+}
+.jp-header-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+.jp-header-brand-text {
+    min-width: 0;
+}
+.jp-header-company-logo {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.95);
+    object-fit: contain;
+    flex-shrink: 0;
+    padding: 0.25rem;
+}
+.jp-header-company-fallback {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.32);
+    background: rgba(255, 255, 255, 0.18);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.15rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+.jp-header-main-right {
+    margin-left: auto;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.97);
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+}
+.jp-header-meta-item {
+    line-height: 1.45;
+}
+@media (max-width: 768px) {
+    .jp-header-main-right {
+        margin-left: 0;
+        width: 100%;
+        text-align: left;
+    }
+    .jp-header-company-logo,
+    .jp-header-company-fallback {
+        width: 52px;
+        height: 52px;
+    }
+}
 .jp-stat-cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -537,6 +606,16 @@ table.jp-table thead th {
     font-weight: 600;
     padding: 1rem;
 }
+table.jp-table thead th .jp-sort-header {
+    color: inherit;
+    text-decoration: none;
+    display: inline-block;
+}
+table.jp-table thead th .jp-sort-header:hover,
+table.jp-table thead th .jp-sort-header:focus {
+    color: #fff;
+    text-decoration: underline;
+}
 table.jp-table tbody tr {
     transition: all 0.2s;
 }
@@ -563,6 +642,16 @@ table.jp-table tbody tr:hover {
 }
 .jp-data-table td:last-child {
     white-space: nowrap;
+}
+.jp-jobs-table td:last-child {
+    white-space: normal;
+}
+.jp-job-actions {
+    display: inline-block;
+    line-height: 1.35;
+}
+.jp-job-actions-line + .jp-job-actions-line {
+    margin-top: 0.15rem;
 }
 .jp-data-table td a {
     word-break: break-word;
@@ -611,6 +700,10 @@ table.jp-table tbody tr:hover {
 .jp-applicants-table .jp-col-rating,
 .jp-applicants-table .jp-col-applied {
     min-width: 100px;
+    white-space: nowrap;
+}
+.jp-applicants-table .jp-col-lastactivity {
+    min-width: 145px;
     white-space: nowrap;
 }
 .jp-applicants-table .jp-col-resume {
@@ -718,11 +811,38 @@ table.jp-table tbody tr:hover {
     gap: 0.5rem;
     align-items: center;
 }
+.jp-bulk-selectall {
+    display: inline-flex;
+    align-items: center;
+    min-height: calc(1.8125rem + 2px);
+    padding: 0 0.6rem;
+    border: 1px solid #ced4da;
+    border-radius: 0.2rem;
+    background: #fff;
+}
+.jp-bulk-selectall .form-check-input {
+    position: static;
+    margin: 0 0.45rem 0 0;
+    flex-shrink: 0;
+}
+.jp-bulk-selectall .form-check-label {
+    font-size: 0.875rem;
+    line-height: 1.1;
+    color: #2e3747;
+}
 .jp-bulk-actions .custom-select {
     min-width: 180px;
+    height: calc(1.8125rem + 2px);
 }
 .jp-bulk-actions .form-control {
     max-width: 160px;
+    height: calc(1.8125rem + 2px);
+}
+.jp-bulk-actions .btn {
+    height: calc(1.8125rem + 2px);
+    line-height: 1.2;
+    display: inline-flex;
+    align-items: center;
 }
 .jp-profile-overview {
     border-left: 4px solid #4e73df;
@@ -791,6 +911,154 @@ table.jp-table tbody tr:hover {
 .jp-icon-action:hover,
 .jp-icon-action:focus {
     text-decoration: none;
+}
+.jp-job-company-head {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+.jp-job-company-meta {
+    min-width: 0;
+}
+.jp-job-company-logo {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #d2dae6;
+    background: #fff;
+    object-fit: contain;
+    flex-shrink: 0;
+    padding: 0.2rem;
+}
+.jp-job-company-fallback {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    border: 1px solid #d2dae6;
+    background: #eef2ff;
+    color: #3b4a66;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    flex-shrink: 0;
+}
+.job-listings {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 1rem;
+}
+.jp-job-card {
+    border: 1px solid #d9e2ef;
+    border-radius: 12px;
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.06);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.jp-job-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+.jp-job-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    min-height: 100%;
+    padding: 1rem 1.1rem;
+}
+.jp-job-card-head {
+    display: grid;
+    gap: 0.6rem;
+}
+.jp-job-card-title {
+    margin: 0;
+    color: #1f2937;
+    font-weight: 700;
+    line-height: 1.3;
+}
+.jp-job-company-head {
+    margin-bottom: 0;
+}
+.jp-job-company-location {
+    font-size: 0.84rem;
+    color: #6b7280;
+}
+.jp-job-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.jp-job-card-badges .badge {
+    font-weight: 600;
+}
+.jp-job-card-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+}
+.jp-job-card-meta-item {
+    border: 1px solid #e5ebf4;
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 0.5rem 0.62rem;
+}
+.jp-job-card-meta-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #667085;
+    font-weight: 700;
+}
+.jp-job-card-meta-value {
+    margin-top: 0.12rem;
+    font-size: 0.9rem;
+    color: #1f2937;
+    font-weight: 600;
+    line-height: 1.35;
+    word-break: break-word;
+}
+.jp-job-card-desc {
+    color: #334155;
+    font-size: 0.92rem;
+    line-height: 1.45;
+    margin: 0;
+    min-height: 4rem;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+}
+.jp-job-user-status {
+    border: 1px solid #e4ecf6;
+    border-radius: 8px;
+    background: #f8fbff;
+    padding: 0.55rem 0.65rem;
+}
+.jp-job-user-status-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #667085;
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+}
+.jp-job-user-status-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+.jp-job-user-status-chips .badge {
+    font-weight: 600;
+}
+.jp-job-card-actions {
+    margin-top: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+.jp-job-card-actions .btn {
+    min-height: 2.1rem;
 }
 .jp-profile-check {
     display: flex;
@@ -865,6 +1133,9 @@ table.jp-table tbody tr:hover {
     }
 }
 @media (max-width: 768px) {
+    .job-listings {
+        grid-template-columns: 1fr;
+    }
     .jp-myapp-head {
         flex-direction: column;
     }
@@ -913,6 +1184,28 @@ table.jp-table tbody tr:hover {
         min-width: 2.5rem;
         min-height: 2.5rem;
         font-size: 1.25rem;
+    }
+    .jp-job-company-logo,
+    .jp-job-company-fallback {
+        width: 36px;
+        height: 36px;
+    }
+    .jp-job-card-body {
+        padding: 0.9rem;
+        gap: 0.7rem;
+    }
+    .jp-job-card-meta-grid {
+        grid-template-columns: 1fr;
+    }
+    .jp-job-card-desc {
+        min-height: 0;
+    }
+    .jp-job-card-actions {
+        flex-direction: column;
+    }
+    .jp-job-card-actions .btn {
+        width: 100%;
+        justify-content: center;
     }
     .jp-data-table thead th {
         font-size: 0.78rem;

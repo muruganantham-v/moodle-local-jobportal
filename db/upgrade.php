@@ -1068,5 +1068,79 @@ function xmldb_local_jobportal_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026020602, 'local', 'jobportal');
     }
 
+    if ($oldversion < 2026020603) {
+        $dbman = $DB->get_manager();
+        $jobtable = new xmldb_table('local_jobportal_jobs');
+
+        $fields = array(
+            new xmldb_field('drivestate', XMLDB_TYPE_CHAR, '30', null, XMLDB_NOTNULL, null, 'applicationsopen', 'status'),
+            new xmldb_field('driveoutcome', XMLDB_TYPE_CHAR, '30', null, null, null, null, 'drivestate'),
+            new xmldb_field('drivenote', XMLDB_TYPE_TEXT, null, null, null, null, null, 'driveoutcome'),
+            new xmldb_field('drivestateupdatedby', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'drivenote'),
+            new xmldb_field('drivestateupdatedat', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'drivestateupdatedby'),
+        );
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($jobtable, $field)) {
+                $dbman->add_field($jobtable, $field);
+            }
+        }
+
+        $stateuserkey = new xmldb_key('jobdrivestateuserfk', XMLDB_KEY_FOREIGN, array('drivestateupdatedby'), 'user', array('id'));
+        if (!$dbman->find_key_name($jobtable, $stateuserkey)) {
+            $dbman->add_key($jobtable, $stateuserkey);
+        }
+
+        $indexes = array(
+            new xmldb_index('jobdrivestateidx', XMLDB_INDEX_NOTUNIQUE, array('drivestate')),
+            new xmldb_index('jobdriveoutcomeidx', XMLDB_INDEX_NOTUNIQUE, array('driveoutcome')),
+        );
+        foreach ($indexes as $index) {
+            if (!$dbman->index_exists($jobtable, $index)) {
+                $dbman->add_index($jobtable, $index);
+            }
+        }
+
+        $now = time();
+        $DB->execute(
+            "UPDATE {local_jobportal_jobs}
+                SET drivestate = :archived
+              WHERE status = :inactive
+                AND (drivestate IS NULL OR drivestate = '' OR drivestate = :openstate)",
+            array(
+                'archived' => 'archived',
+                'inactive' => 0,
+                'openstate' => 'applicationsopen',
+            )
+        );
+        $DB->execute(
+            "UPDATE {local_jobportal_jobs}
+                SET drivestate = :closed
+              WHERE status = :active
+                AND deadline IS NOT NULL
+                AND deadline > 0
+                AND deadline < :now
+                AND (drivestate IS NULL OR drivestate = '' OR drivestate = :openstate)",
+            array(
+                'closed' => 'applicationsclosed',
+                'active' => 1,
+                'now' => $now,
+                'openstate' => 'applicationsopen',
+            )
+        );
+        $DB->execute(
+            "UPDATE {local_jobportal_jobs}
+                SET drivestate = :openstate
+              WHERE drivestate IS NULL OR drivestate = ''",
+            array('openstate' => 'applicationsopen')
+        );
+        $DB->execute(
+            "UPDATE {local_jobportal_jobs}
+                SET driveoutcome = NULL
+              WHERE driveoutcome = ''"
+        );
+
+        upgrade_plugin_savepoint(true, 2026020603, 'local', 'jobportal');
+    }
+
     return true;
 }

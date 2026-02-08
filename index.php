@@ -5,6 +5,461 @@ require_once('../../config.php');
 require_once($CFG->libdir.'/tablelib.php');
 require_once(__DIR__ . '/locallib.php');
 
+/**
+ * Jobs listing table for manager view.
+ */
+class local_jobportal_jobs_table extends table_sql {
+    /** @var bool */
+    protected $canpost = false;
+    /** @var bool */
+    protected $canviewapplications = false;
+    /** @var string */
+    protected $dateformat = '%d/%m/%Y';
+    /** @var string */
+    protected $datetimeformat = '%d/%m/%Y %H:%M';
+    /** @var int */
+    protected $now = 0;
+    /** @var string */
+    protected $sortby = 'listed';
+    /** @var string */
+    protected $sortdir = 'desc';
+    /** @var array */
+    protected $sortbaseparams = array();
+
+    /**
+     * local_jobportal_jobs_table constructor.
+     *
+     * @param string $uniqueid
+     * @param array $selectedcols
+     * @param array $columnoptions
+     * @param bool $canpost
+     * @param bool $canviewapplications
+     * @param string $dateformat
+     * @param string $datetimeformat
+     * @param int $now
+     * @param array $sortbaseparams
+     * @param string $sortby
+     * @param string $sortdir
+     */
+    public function __construct(
+        $uniqueid,
+        array $selectedcols,
+        array $columnoptions,
+        $canpost,
+        $canviewapplications,
+        $dateformat,
+        $datetimeformat,
+        $now,
+        array $sortbaseparams,
+        $sortby,
+        $sortdir
+    ) {
+        parent::__construct($uniqueid);
+
+        $this->canpost = (bool)$canpost;
+        $this->canviewapplications = (bool)$canviewapplications;
+        $this->dateformat = $dateformat;
+        $this->datetimeformat = $datetimeformat;
+        $this->now = (int)$now;
+        $this->sortbaseparams = $sortbaseparams;
+        $this->sortby = $sortby;
+        $this->sortdir = strtolower($sortdir) === 'asc' ? 'asc' : 'desc';
+
+        $columns = array_merge(array('select'), $selectedcols, array('actions'));
+        $headers = array(get_string('select', 'moodle'));
+        foreach ($selectedcols as $key) {
+            $label = isset($columnoptions[$key]) ? $columnoptions[$key] : $key;
+            $headers[] = $this->build_sort_header($key, $label);
+        }
+        $headers[] = get_string('actions');
+
+        $this->define_columns($columns);
+        $this->define_headers($headers);
+        $this->set_attribute('class', 'table table-sm table-striped table-bordered jp-table jp-data-table jp-jobs-table');
+        $this->set_attribute('id', 'jp-jobs-table');
+
+        $this->sortable(false);
+        $this->collapsible(false);
+        $this->no_sorting('select');
+        $this->no_sorting('actions');
+        $this->apply_column_layout($selectedcols);
+    }
+
+    /**
+     * Select checkbox column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_select($row) {
+        return html_writer::empty_tag('input', array(
+            'type' => 'checkbox',
+            'name' => 'jobids[]',
+            'value' => (int)$row->id,
+            'class' => 'jp-job-select',
+        ));
+    }
+
+    /**
+     * Job id column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_jobid($row) {
+        return html_writer::link(
+            new moodle_url('/local/jobportal/view.php', array('id' => (int)$row->id)),
+            (string)(int)$row->id
+        );
+    }
+
+    /**
+     * Job title column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_title($row) {
+        return html_writer::link(
+            new moodle_url('/local/jobportal/view.php', array('id' => (int)$row->id)),
+            format_string($row->title)
+        );
+    }
+
+    /**
+     * Linked company profile name column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_company($row) {
+        $companyname = !empty($row->companyprofilename) ? $row->companyprofilename : $row->company;
+        if (!empty($row->companyprofileid)) {
+            return html_writer::link(
+                new moodle_url('/local/jobportal/company.php', array('id' => (int)$row->companyprofileid)),
+                s($companyname)
+            );
+        }
+        return s($companyname);
+    }
+
+    /**
+     * Job status column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_status($row) {
+        list($label, $badge) = $this->get_status_badge($row);
+        return html_writer::tag('span', $label, array('class' => $badge));
+    }
+
+    /**
+     * Job type column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_jobtype($row) {
+        return local_jobportal_format_jobtype($row->jobtype);
+    }
+
+    /**
+     * Location column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_location($row) {
+        return !empty($row->location) ? s($row->location) : '-';
+    }
+
+    /**
+     * Salary column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_salary($row) {
+        $salarydisplay = local_jobportal_get_job_salary_display($row, null, true);
+        return $salarydisplay !== '' ? s($salarydisplay) : '-';
+    }
+
+    /**
+     * Listed date column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_listed($row) {
+        return userdate($row->timecreated, $this->dateformat);
+    }
+
+    /**
+     * Application deadline column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_deadline($row) {
+        return !empty($row->deadline) ? userdate($row->deadline, $this->datetimeformat) : '-';
+    }
+
+    /**
+     * Total applications column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_applications($row) {
+        return (string)(int)$row->applicationscount;
+    }
+
+    /**
+     * Shortlisted count column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_shortlisted($row) {
+        return (string)(int)$row->shortlistedcount;
+    }
+
+    /**
+     * Offer conversion column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_offerconversion($row) {
+        $applicationscount = (int)$row->applicationscount;
+        $acceptedcount = (int)$row->acceptedcount;
+        if ($applicationscount <= 0) {
+            return '0%';
+        }
+        return format_float(($acceptedcount / $applicationscount) * 100, 1) . '%';
+    }
+
+    /**
+     * Last application date column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_lastapplication($row) {
+        return !empty($row->lastapplicationat) ? userdate($row->lastapplicationat, $this->dateformat) : '-';
+    }
+
+    /**
+     * Last activity date/time column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_lastactivity($row) {
+        return !empty($row->lastactivityat) ? userdate($row->lastactivityat, $this->datetimeformat) : '-';
+    }
+
+    /**
+     * Days since last application column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_dayssincelastapplication($row) {
+        if (empty($row->lastapplicationat)) {
+            return '-';
+        }
+        return (string)max(0, (int)floor(($this->now - (int)$row->lastapplicationat) / DAYSECS));
+    }
+
+    /**
+     * Days inactive (since last activity) column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_daysinactive($row) {
+        if (empty($row->lastactivityat)) {
+            return '-';
+        }
+        return (string)max(0, (int)floor(($this->now - (int)$row->lastactivityat) / DAYSECS));
+    }
+
+    /**
+     * Last updated date column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_updated($row) {
+        return userdate($row->timemodified, $this->dateformat);
+    }
+
+    /**
+     * Actions column.
+     *
+     * @param stdClass $row
+     * @return string
+     */
+    public function col_actions($row) {
+        $line1 = array();
+        $line2 = array();
+
+        $viewjob = html_writer::link(
+            new moodle_url('/local/jobportal/view.php', array('id' => (int)$row->id)),
+            get_string('viewjob', 'local_jobportal')
+        );
+        $line1[] = $viewjob;
+
+        if ($this->canviewapplications) {
+            $line1[] = html_writer::link(
+                new moodle_url('/local/jobportal/applications.php', array('jobid' => (int)$row->id)),
+                get_string('viewapplications', 'local_jobportal')
+            );
+        }
+
+        if ($this->canpost) {
+            $line2[] = html_writer::link(
+                new moodle_url('/local/jobportal/post.php', array('id' => (int)$row->id)),
+                get_string('editjob', 'local_jobportal')
+            );
+            $line2[] = html_writer::link(
+                new moodle_url('/local/jobportal/post.php', array('cloneid' => (int)$row->id)),
+                get_string('clonejob', 'local_jobportal')
+            );
+        }
+
+        $lines = array();
+        if (!empty($line1)) {
+            $lines[] = html_writer::div(implode(' | ', $line1), 'jp-job-actions-line');
+        }
+        if (!empty($line2)) {
+            $lines[] = html_writer::div(implode(' | ', $line2), 'jp-job-actions-line');
+        }
+
+        return html_writer::div(implode('', $lines), 'jp-job-actions');
+    }
+
+    /**
+     * Resolve status label and badge class.
+     *
+     * @param stdClass $row
+     * @return array
+     */
+    protected function get_status_badge($row) {
+        $state = local_jobportal_get_job_drive_state($row);
+        $label = local_jobportal_get_job_drive_state_label($state);
+        $badge = local_jobportal_get_job_drive_state_badge_class($state);
+        return array($label, $badge);
+    }
+
+    /**
+     * Apply per-column width/alignment for better readability.
+     *
+     * @param array $selectedcols
+     * @return void
+     */
+    protected function apply_column_layout(array $selectedcols) {
+        $this->column_style('select', 'width', '44px');
+        $this->column_style('select', 'text-align', 'center');
+        $this->column_style('actions', 'min-width', '220px');
+        $this->column_style('actions', 'width', '220px');
+        $this->column_style('actions', 'white-space', 'normal');
+
+        $styles = array(
+            'jobid' => array('width' => '84px', 'text-align' => 'center'),
+            'title' => array('min-width' => '220px'),
+            'company' => array('min-width' => '200px'),
+            'status' => array('min-width' => '120px', 'text-align' => 'center'),
+            'jobtype' => array('min-width' => '120px', 'text-align' => 'center'),
+            'location' => array('min-width' => '160px'),
+            'salary' => array('min-width' => '180px'),
+            'listed' => array('width' => '110px', 'text-align' => 'center'),
+            'deadline' => array('width' => '150px', 'text-align' => 'center'),
+            'applications' => array('width' => '100px', 'text-align' => 'center'),
+            'shortlisted' => array('width' => '100px', 'text-align' => 'center'),
+            'offerconversion' => array('width' => '120px', 'text-align' => 'center'),
+            'lastapplication' => array('width' => '130px', 'text-align' => 'center'),
+            'dayssincelastapplication' => array('width' => '140px', 'text-align' => 'center'),
+            'lastactivity' => array('width' => '150px', 'text-align' => 'center'),
+            'daysinactive' => array('width' => '110px', 'text-align' => 'center'),
+            'updated' => array('width' => '110px', 'text-align' => 'center'),
+        );
+
+        foreach ($selectedcols as $col) {
+            if (empty($styles[$col])) {
+                continue;
+            }
+            foreach ($styles[$col] as $property => $value) {
+                $this->column_style($col, $property, $value);
+            }
+        }
+    }
+
+    /**
+     * Build clickable header label for supported sort columns.
+     *
+     * @param string $key
+     * @param string $label
+     * @return string
+     */
+    protected function build_sort_header($key, $label) {
+        $sortable = array(
+            'jobid',
+            'title',
+            'company',
+            'listed',
+            'deadline',
+            'updated',
+            'location',
+            'salary',
+            'applications',
+            'shortlisted',
+            'offerconversion',
+            'dayssincelastapplication',
+            'lastactivity',
+            'daysinactive',
+        );
+        if (!in_array($key, $sortable, true)) {
+            return $label;
+        }
+
+        $nextdir = 'asc';
+        $indicator = '';
+        if ($this->sortby === $key) {
+            if ($this->sortdir === 'asc') {
+                $nextdir = 'desc';
+                $indicator = ' ↑';
+            } else {
+                $nextdir = 'asc';
+                $indicator = ' ↓';
+            }
+        }
+
+        $params = $this->sortbaseparams;
+        $params['page'] = 0;
+        $params['sortby'] = $key;
+        $params['sortdir'] = $nextdir;
+
+        return html_writer::link(
+            new moodle_url('/local/jobportal/index.php', $params),
+            $label . $indicator,
+            array('class' => 'jp-sort-header')
+        );
+    }
+}
+
+/**
+ * Check whether a request parameter exists in GET or POST.
+ *
+ * @param string $name
+ * @return bool
+ */
+function local_jobportal_request_param_exists($name) {
+    return array_key_exists($name, $_GET) || array_key_exists($name, $_POST);
+}
+
 require_login();
 
 $context = context_system::instance();
@@ -30,50 +485,153 @@ $perpage = 12;
 $pageurlparams = array();
 
 if ($ismanager) {
+    $managerprefprefix = 'local_jobportal_index_';
+    $managerprefkeys = array(
+        'search',
+        'perpage',
+        'companyid',
+        'jobstatus',
+        'jobtype',
+        'salarymode',
+        'salarymin',
+        'salarymax',
+        'hasapps',
+        'staledays',
+        'listedfrom',
+        'listedto',
+        'deadlinefrom',
+        'deadlineto',
+        'sortby',
+        'sortdir',
+        'preset',
+        'cols',
+    );
+    $resetfiltersprefs = optional_param('resetfilters', 0, PARAM_BOOL);
+    if ($resetfiltersprefs) {
+        foreach ($managerprefkeys as $prefkey) {
+            unset_user_preference($managerprefprefix . $prefkey, $USER->id);
+        }
+    }
+
+    $readmanagerparam = function($name, $default, $type) use ($resetfiltersprefs, $managerprefprefix) {
+        $provided = local_jobportal_request_param_exists($name);
+        if ($provided) {
+            $value = optional_param($name, $default, $type);
+        } else if ($resetfiltersprefs) {
+            $value = $default;
+        } else {
+            $value = get_user_preferences($managerprefprefix . $name, $default, $USER->id);
+        }
+        return array($value, $provided);
+    };
+
+    $pluginconfig = get_config('local_jobportal');
+    $getpresetenabled = function($key, $default = true) use ($pluginconfig) {
+        if (!isset($pluginconfig->$key)) {
+            return $default;
+        }
+        return (int)$pluginconfig->$key === 1;
+    };
+    $getpresetdays = function($key, $default = 14) use ($pluginconfig) {
+        if (!isset($pluginconfig->$key) || !is_numeric($pluginconfig->$key)) {
+            return $default;
+        }
+        $value = (int)$pluginconfig->$key;
+        if ($value < 1) {
+            return 1;
+        } else if ($value > 365) {
+            return 365;
+        }
+        return $value;
+    };
+    $presetopenenabled = $getpresetenabled('preset_open_enabled', true);
+    $presetclosingsoonenabled = $getpresetenabled('preset_closingsoon_enabled', true);
+    $presetdeadlinetodayenabled = $getpresetenabled('preset_deadlinetoday_enabled', true);
+    $presetdeadlinetomorrowenabled = $getpresetenabled('preset_deadlinetomorrow_enabled', true);
+    $presetnoappsenabled = $getpresetenabled('preset_noapps_enabled', true);
+    $presetstaleenabled = $getpresetenabled('preset_stale_enabled', true);
+    $presetnoactivityenabled = $getpresetenabled('preset_noactivity_enabled', true);
+    $noappspresetdays = $getpresetdays('preset_noapps_days', 14);
+    $stalepresetdays = $getpresetdays('preset_stale_days', 14);
+    $noactivitypresetdays = $getpresetdays('preset_noactivity_days', 14);
+
     $perpageoptions = array(25, 50, 100);
-    $perpage = optional_param('perpage', 25, PARAM_INT);
+    list($search, $searchprovided) = $readmanagerparam('search', '', PARAM_TEXT);
+    $search = trim($search);
+
+    list($perpage, $perpageprovided) = $readmanagerparam('perpage', 25, PARAM_INT);
     if (!in_array($perpage, $perpageoptions, true)) {
         $perpage = 25;
     }
 
-    $companyid = optional_param('companyid', 0, PARAM_INT);
-    $jobstatus = optional_param('jobstatus', 'all', PARAM_ALPHANUMEXT);
-    $jobtype = optional_param('jobtype', 'all', PARAM_ALPHANUMEXT);
-    $salarymode = optional_param('salarymode', 'all', PARAM_ALPHANUMEXT);
-    $salaryminraw = trim(optional_param('salarymin', '', PARAM_RAW_TRIMMED));
-    $salarymaxraw = trim(optional_param('salarymax', '', PARAM_RAW_TRIMMED));
-    $hasapps = optional_param('hasapps', 'all', PARAM_ALPHANUMEXT);
-    $staledays = optional_param('staledays', 14, PARAM_INT);
+    list($companyid, $companyidprovided) = $readmanagerparam('companyid', 0, PARAM_INT);
+    list($jobstatus, $jobstatusprovided) = $readmanagerparam('jobstatus', 'all', PARAM_ALPHANUMEXT);
+    list($jobtype, $jobtypeprovided) = $readmanagerparam('jobtype', 'all', PARAM_ALPHANUMEXT);
+    list($salarymode, $salarymodeprovided) = $readmanagerparam('salarymode', 'all', PARAM_ALPHANUMEXT);
+    list($salaryminraw, $salaryminprovided) = $readmanagerparam('salarymin', '', PARAM_RAW_TRIMMED);
+    list($salarymaxraw, $salarymaxprovided) = $readmanagerparam('salarymax', '', PARAM_RAW_TRIMMED);
+    $salaryminraw = trim((string)$salaryminraw);
+    $salarymaxraw = trim((string)$salarymaxraw);
+    list($hasapps, $hasappsprovided) = $readmanagerparam('hasapps', 'all', PARAM_ALPHANUMEXT);
+    list($staledays, $staledaysprovided) = $readmanagerparam('staledays', $stalepresetdays, PARAM_INT);
     if ($staledays < 1) {
         $staledays = 1;
     } else if ($staledays > 365) {
         $staledays = 365;
     }
 
-    $listedfrom = trim(optional_param('listedfrom', '', PARAM_TEXT));
-    $listedto = trim(optional_param('listedto', '', PARAM_TEXT));
-    $deadlinefrom = trim(optional_param('deadlinefrom', '', PARAM_TEXT));
-    $deadlineto = trim(optional_param('deadlineto', '', PARAM_TEXT));
+    list($listedfrom, $listedfromprovided) = $readmanagerparam('listedfrom', '', PARAM_TEXT);
+    list($listedto, $listedtoprovided) = $readmanagerparam('listedto', '', PARAM_TEXT);
+    list($deadlinefrom, $deadlinefromprovided) = $readmanagerparam('deadlinefrom', '', PARAM_TEXT);
+    list($deadlineto, $deadlinetoprovided) = $readmanagerparam('deadlineto', '', PARAM_TEXT);
+    $listedfrom = trim($listedfrom);
+    $listedto = trim($listedto);
+    $deadlinefrom = trim($deadlinefrom);
+    $deadlineto = trim($deadlineto);
 
-    $sortby = optional_param('sortby', 'listed', PARAM_ALPHANUMEXT);
-    $sortdir = optional_param('sortdir', 'desc', PARAM_ALPHA);
+    list($sortby, $sortbyprovided) = $readmanagerparam('sortby', 'listed', PARAM_ALPHANUMEXT);
+    list($sortdir, $sortdirprovided) = $readmanagerparam('sortdir', 'desc', PARAM_ALPHA);
     $sortdir = strtolower($sortdir) === 'asc' ? 'asc' : 'desc';
 
-    $preset = optional_param('preset', '', PARAM_ALPHANUMEXT);
+    list($preset, $presetprovided) = $readmanagerparam('preset', '', PARAM_ALPHANUMEXT);
     $cols = array();
+    $colsprovided = local_jobportal_request_param_exists('cols');
     if ((isset($_GET['cols']) && is_array($_GET['cols'])) || (isset($_POST['cols']) && is_array($_POST['cols']))) {
         $cols = optional_param_array('cols', array(), PARAM_ALPHANUMEXT);
     }
     $colstring = '';
     if (empty($cols)) {
-        if (isset($_GET['cols']) && is_string($_GET['cols'])) {
+        if ($colsprovided && isset($_GET['cols']) && is_string($_GET['cols'])) {
             $colstring = trim($_GET['cols']);
-        } else if (isset($_POST['cols']) && is_string($_POST['cols'])) {
+        } else if ($colsprovided && isset($_POST['cols']) && is_string($_POST['cols'])) {
             $colstring = trim($_POST['cols']);
+        } else if (!$resetfiltersprefs) {
+            $colstring = trim((string)get_user_preferences($managerprefprefix . 'cols', '', $USER->id));
         }
     }
 
-    $allowedstatuses = array('all', 'active', 'inactive', 'closed', 'expired', 'closingsoon', 'stale');
+    $statusaliases = array(
+        'active' => 'applicationsopen',
+        'closed' => 'applicationsclosed',
+        'inactive' => 'archived',
+    );
+    if (isset($statusaliases[$jobstatus])) {
+        $jobstatus = $statusaliases[$jobstatus];
+    }
+
+    $allowedstatuses = array(
+        'all',
+        'applicationsopen',
+        'applicationsclosed',
+        'selectioninprogress',
+        'completed',
+        'archived',
+        'onhold',
+        'cancelled',
+        'expired',
+        'closingsoon',
+        'stale',
+    );
     if (!in_array($jobstatus, $allowedstatuses, true)) {
         $jobstatus = 'all';
     }
@@ -145,31 +703,45 @@ if ($ismanager) {
 
     $presetoptions = array(
         '' => get_string('presetcustom', 'local_jobportal'),
-        'open' => get_string('presetopenjobs', 'local_jobportal'),
-        'closingsoon' => get_string('presetclosingsoon', 'local_jobportal'),
-        'noapps14' => get_string('presetnoapps14', 'local_jobportal'),
-        'stale14' => get_string('presetstale14', 'local_jobportal'),
     );
+    if ($presetopenenabled) {
+        $presetoptions['open'] = get_string('presetopenjobs', 'local_jobportal');
+    }
+    if ($presetclosingsoonenabled) {
+        $presetoptions['closingsoon'] = get_string('presetclosingsoon', 'local_jobportal');
+    }
+    if ($presetdeadlinetodayenabled) {
+        $presetoptions['deadlinetoday'] = get_string('presetdeadlinetoday', 'local_jobportal');
+    }
+    if ($presetdeadlinetomorrowenabled) {
+        $presetoptions['deadlinetomorrow'] = get_string('presetdeadlinetomorrow', 'local_jobportal');
+    }
+    if ($presetnoappsenabled) {
+        $presetoptions['noapps14'] = get_string('presetnoappsdays', 'local_jobportal', $noappspresetdays);
+    }
+    if ($presetstaleenabled) {
+        $presetoptions['stale14'] = get_string('presetstaledays', 'local_jobportal', $stalepresetdays);
+    }
+    if ($presetnoactivityenabled) {
+        $presetoptions['noactivity14'] = get_string('presetnoactivitydays', 'local_jobportal', $noactivitypresetdays);
+    }
     if (!isset($presetoptions[$preset])) {
         $preset = '';
     }
 
+    $deadlinetodaydate = date('Y-m-d', $now);
+    $deadlinetomorrowdate = date('Y-m-d', $now + DAYSECS);
     $noappsaged = false;
-    $jobstatusprovided = isset($_GET['jobstatus']) || isset($_POST['jobstatus']);
-    $hasappsprovided = isset($_GET['hasapps']) || isset($_POST['hasapps']);
-    $staledaysprovided = isset($_GET['staledays']) || isset($_POST['staledays']);
-    $salarymodeprovided = isset($_GET['salarymode']) || isset($_POST['salarymode']);
-    $salaryminprovided = isset($_GET['salarymin']) || isset($_POST['salarymin']);
-    $salarymaxprovided = isset($_GET['salarymax']) || isset($_POST['salarymax']);
+    $noactivityaged = false;
     if ($preset === 'open') {
-        $hasconflict = ($jobstatusprovided && $jobstatus !== 'active') ||
+        $hasconflict = ($jobstatusprovided && $jobstatus !== 'applicationsopen') ||
             ($salarymodeprovided && $salarymode !== 'all') ||
             ($salaryminprovided && $salaryminraw !== '') ||
             ($salarymaxprovided && $salarymaxraw !== '');
         if ($hasconflict) {
             $preset = '';
         } else {
-            $jobstatus = 'active';
+            $jobstatus = 'applicationsopen';
         }
     } else if ($preset === 'closingsoon') {
         $hasconflict = ($jobstatusprovided && $jobstatus !== 'closingsoon') ||
@@ -181,9 +753,37 @@ if ($ismanager) {
         } else {
             $jobstatus = 'closingsoon';
         }
+    } else if ($preset === 'deadlinetoday') {
+        $hasconflict = ($jobstatusprovided && $jobstatus !== 'applicationsopen') ||
+            ($deadlinefromprovided && $deadlinefrom !== $deadlinetodaydate) ||
+            ($deadlinetoprovided && $deadlineto !== $deadlinetodaydate) ||
+            ($salarymodeprovided && $salarymode !== 'all') ||
+            ($salaryminprovided && $salaryminraw !== '') ||
+            ($salarymaxprovided && $salarymaxraw !== '');
+        if ($hasconflict) {
+            $preset = '';
+        } else {
+            $jobstatus = 'applicationsopen';
+            $deadlinefrom = $deadlinetodaydate;
+            $deadlineto = $deadlinetodaydate;
+        }
+    } else if ($preset === 'deadlinetomorrow') {
+        $hasconflict = ($jobstatusprovided && $jobstatus !== 'applicationsopen') ||
+            ($deadlinefromprovided && $deadlinefrom !== $deadlinetomorrowdate) ||
+            ($deadlinetoprovided && $deadlineto !== $deadlinetomorrowdate) ||
+            ($salarymodeprovided && $salarymode !== 'all') ||
+            ($salaryminprovided && $salaryminraw !== '') ||
+            ($salarymaxprovided && $salarymaxraw !== '');
+        if ($hasconflict) {
+            $preset = '';
+        } else {
+            $jobstatus = 'applicationsopen';
+            $deadlinefrom = $deadlinetomorrowdate;
+            $deadlineto = $deadlinetomorrowdate;
+        }
     } else if ($preset === 'noapps14') {
         $hasconflict = ($hasappsprovided && $hasapps !== 'no') ||
-            ($staledaysprovided && $staledays !== 14) ||
+            ($staledaysprovided && $staledays !== $noappspresetdays) ||
             ($salarymodeprovided && $salarymode !== 'all') ||
             ($salaryminprovided && $salaryminraw !== '') ||
             ($salarymaxprovided && $salarymaxraw !== '');
@@ -191,12 +791,12 @@ if ($ismanager) {
             $preset = '';
         } else {
             $hasapps = 'no';
-            $staledays = 14;
+            $staledays = $noappspresetdays;
             $noappsaged = true;
         }
     } else if ($preset === 'stale14') {
         $hasconflict = ($jobstatusprovided && $jobstatus !== 'stale') ||
-            ($staledaysprovided && $staledays !== 14) ||
+            ($staledaysprovided && $staledays !== $stalepresetdays) ||
             ($salarymodeprovided && $salarymode !== 'all') ||
             ($salaryminprovided && $salaryminraw !== '') ||
             ($salarymaxprovided && $salarymaxraw !== '');
@@ -204,7 +804,20 @@ if ($ismanager) {
             $preset = '';
         } else {
             $jobstatus = 'stale';
-            $staledays = 14;
+            $staledays = $stalepresetdays;
+        }
+    } else if ($preset === 'noactivity14') {
+        $hasconflict = ($jobstatusprovided && $jobstatus !== 'all') ||
+            ($hasappsprovided && $hasapps !== 'all') ||
+            ($staledaysprovided && $staledays !== $noactivitypresetdays) ||
+            ($salarymodeprovided && $salarymode !== 'all') ||
+            ($salaryminprovided && $salaryminraw !== '') ||
+            ($salarymaxprovided && $salarymaxraw !== '');
+        if ($hasconflict) {
+            $preset = '';
+        } else {
+            $staledays = $noactivitypresetdays;
+            $noactivityaged = true;
         }
     }
 
@@ -212,9 +825,16 @@ if ($ismanager) {
         $page = 0;
     }
 
-    $showstaledays = ($jobstatus === 'stale' || $preset === 'noapps14' || $preset === 'stale14');
+    $staledaysbaseline = $stalepresetdays;
+    if ($preset === 'noapps14') {
+        $staledaysbaseline = $noappspresetdays;
+    } else if ($preset === 'noactivity14') {
+        $staledaysbaseline = $noactivitypresetdays;
+    }
+
+    $showstaledays = ($jobstatus === 'stale' || $preset === 'noapps14' || $preset === 'stale14' || $preset === 'noactivity14');
     $advancedopen = ($listedfrom !== '' || $listedto !== '' || $deadlinefrom !== '' || $deadlineto !== '' || $hasapps !== 'all' ||
-        $staledays !== 14 || $salarymode !== 'all' || $salaryminraw !== '' || $salarymaxraw !== '');
+        $staledays !== $staledaysbaseline || $salarymode !== 'all' || $salaryminraw !== '' || $salarymaxraw !== '');
 
     $listedfromts = 0;
     if ($listedfrom !== '') {
@@ -264,6 +884,8 @@ if ($ismanager) {
         'offerconversion' => get_string('offerconversion', 'local_jobportal'),
         'lastapplication' => get_string('lastapplication', 'local_jobportal'),
         'dayssincelastapplication' => get_string('dayssincelastapplication', 'local_jobportal'),
+        'lastactivity' => get_string('lastactivity', 'local_jobportal'),
+        'daysinactive' => get_string('daysinactive', 'local_jobportal'),
         'updated' => get_string('lastupdated', 'local_jobportal'),
     );
     if (empty($cols) && $colstring !== '') {
@@ -273,6 +895,25 @@ if ($ismanager) {
     if (empty($selectedcols)) {
         $selectedcols = array_keys($columnoptions);
     }
+
+    set_user_preference($managerprefprefix . 'search', $search, $USER->id);
+    set_user_preference($managerprefprefix . 'perpage', $perpage, $USER->id);
+    set_user_preference($managerprefprefix . 'companyid', $companyid, $USER->id);
+    set_user_preference($managerprefprefix . 'jobstatus', $jobstatus, $USER->id);
+    set_user_preference($managerprefprefix . 'jobtype', $jobtype, $USER->id);
+    set_user_preference($managerprefprefix . 'salarymode', $salarymode, $USER->id);
+    set_user_preference($managerprefprefix . 'salarymin', $salaryminraw, $USER->id);
+    set_user_preference($managerprefprefix . 'salarymax', $salarymaxraw, $USER->id);
+    set_user_preference($managerprefprefix . 'hasapps', $hasapps, $USER->id);
+    set_user_preference($managerprefprefix . 'staledays', $staledays, $USER->id);
+    set_user_preference($managerprefprefix . 'listedfrom', $listedfrom, $USER->id);
+    set_user_preference($managerprefprefix . 'listedto', $listedto, $USER->id);
+    set_user_preference($managerprefprefix . 'deadlinefrom', $deadlinefrom, $USER->id);
+    set_user_preference($managerprefprefix . 'deadlineto', $deadlineto, $USER->id);
+    set_user_preference($managerprefprefix . 'sortby', $sortby, $USER->id);
+    set_user_preference($managerprefprefix . 'sortdir', $sortdir, $USER->id);
+    set_user_preference($managerprefprefix . 'preset', $preset, $USER->id);
+    set_user_preference($managerprefprefix . 'cols', implode(',', $selectedcols), $USER->id);
 
     $pageurlparams = array(
         'search' => $search,
@@ -354,7 +995,8 @@ if ($ismanager) {
                     return;
                 }
                 var presetValue = presetInput ? presetInput.value : '';
-                var show = statusSelect.value === 'stale' || presetValue === 'stale14' || presetValue === 'noapps14';
+                var show = statusSelect.value === 'stale' || presetValue === 'stale14' ||
+                    presetValue === 'noapps14' || presetValue === 'noactivity14';
                 staleDaysWrap.style.display = show ? '' : 'none';
             }
             function syncSalaryVisibility() {
@@ -419,11 +1061,16 @@ if ($ismanager && data_submitted() && optional_param('bulk', 0, PARAM_BOOL) && c
     $now = time();
 
     if ($bulkaction === 'open' || $bulkaction === 'close') {
-        $newstatus = $bulkaction === 'open' ? 1 : 0;
+        $newdrivestate = $bulkaction === 'open' ? 'applicationsopen' : 'applicationsclosed';
         foreach ($jobs as $job) {
             $update = new stdClass();
             $update->id = (int)$job->id;
-            $update->status = $newstatus;
+            $update->status = 1;
+            $update->drivestate = $newdrivestate;
+            $update->driveoutcome = null;
+            $update->drivenote = null;
+            $update->drivestateupdatedby = (int)$USER->id;
+            $update->drivestateupdatedat = $now;
             $update->timemodified = $now;
             $DB->update_record('local_jobportal_jobs', $update);
             $updated++;
@@ -478,6 +1125,11 @@ if ($ismanager && data_submitted() && optional_param('bulk', 0, PARAM_BOOL) && c
             $clone->requirements = $job->requirements;
             $clone->deadline = null;
             $clone->status = 1;
+            $clone->drivestate = 'applicationsopen';
+            $clone->driveoutcome = null;
+            $clone->drivenote = null;
+            $clone->drivestateupdatedby = null;
+            $clone->drivestateupdatedat = null;
             $clone->postedby = $USER->id;
             $clone->timecreated = $now;
             $clone->timemodified = $now;
@@ -513,9 +1165,13 @@ if ($ismanager) {
 
     $jobstatusoptions = array(
         'all' => get_string('allstatuses', 'local_jobportal'),
-        'active' => get_string('jobstatusactive', 'local_jobportal'),
-        'inactive' => get_string('jobstatusinactive', 'local_jobportal'),
-        'closed' => get_string('jobstatusclosed', 'local_jobportal'),
+        'applicationsopen' => get_string('drivestate_applicationsopen', 'local_jobportal'),
+        'applicationsclosed' => get_string('drivestate_applicationsclosed', 'local_jobportal'),
+        'selectioninprogress' => get_string('drivestate_selectioninprogress', 'local_jobportal'),
+        'completed' => get_string('drivestate_completed', 'local_jobportal'),
+        'onhold' => get_string('drivestate_onhold', 'local_jobportal'),
+        'cancelled' => get_string('drivestate_cancelled', 'local_jobportal'),
+        'archived' => get_string('drivestate_archived', 'local_jobportal'),
         'expired' => get_string('jobstatusexpired', 'local_jobportal'),
         'closingsoon' => get_string('jobstatusclosingsoon', 'local_jobportal'),
         'stale' => get_string('jobstatusstale', 'local_jobportal'),
@@ -554,6 +1210,8 @@ if ($ismanager) {
         'shortlisted' => get_string('shortlisted', 'local_jobportal'),
         'offerconversion' => get_string('offerconversion', 'local_jobportal'),
         'dayssincelastapplication' => get_string('dayssincelastapplication', 'local_jobportal'),
+        'lastactivity' => get_string('lastactivity', 'local_jobportal'),
+        'daysinactive' => get_string('daysinactive', 'local_jobportal'),
         'company' => get_string('company', 'local_jobportal'),
         'title' => get_string('jobtitle', 'local_jobportal'),
     );
@@ -575,6 +1233,7 @@ if ($ismanager) {
     $columnorder = array_keys($columnoptions);
 
     $baseurl = new moodle_url('/local/jobportal/index.php');
+    $resetfiltersurl = new moodle_url('/local/jobportal/index.php', array('resetfilters' => 1));
     $presetchipurls = array();
     foreach ($presetoptions as $presetkey => $presetlabel) {
         if ($presetkey === '') {
@@ -588,19 +1247,31 @@ if ($ismanager) {
         $presetparams['salarymin'] = '';
         $presetparams['salarymax'] = '';
         $presetparams['hasapps'] = 'all';
-        $presetparams['staledays'] = 14;
+        $presetparams['staledays'] = $stalepresetdays;
         $presetparams['listedfrom'] = '';
         $presetparams['listedto'] = '';
         $presetparams['deadlinefrom'] = '';
         $presetparams['deadlineto'] = '';
         if ($presetkey === 'open') {
-            $presetparams['jobstatus'] = 'active';
+            $presetparams['jobstatus'] = 'applicationsopen';
         } else if ($presetkey === 'closingsoon') {
             $presetparams['jobstatus'] = 'closingsoon';
+        } else if ($presetkey === 'deadlinetoday') {
+            $presetparams['jobstatus'] = 'applicationsopen';
+            $presetparams['deadlinefrom'] = date('Y-m-d', $now);
+            $presetparams['deadlineto'] = date('Y-m-d', $now);
+        } else if ($presetkey === 'deadlinetomorrow') {
+            $presetparams['jobstatus'] = 'applicationsopen';
+            $presetparams['deadlinefrom'] = date('Y-m-d', $now + DAYSECS);
+            $presetparams['deadlineto'] = date('Y-m-d', $now + DAYSECS);
         } else if ($presetkey === 'noapps14') {
             $presetparams['hasapps'] = 'no';
+            $presetparams['staledays'] = $noappspresetdays;
         } else if ($presetkey === 'stale14') {
             $presetparams['jobstatus'] = 'stale';
+            $presetparams['staledays'] = $stalepresetdays;
+        } else if ($presetkey === 'noactivity14') {
+            $presetparams['staledays'] = $noactivitypresetdays;
         }
         $presetchipurls[$presetkey] = new moodle_url('/local/jobportal/index.php', $presetparams);
     }
@@ -664,8 +1335,11 @@ if ($ismanager) {
     if ($deadlineto !== '') {
         $activefilterchips[] = $buildchip(get_string('deadlineto', 'local_jobportal') . ': ' . $deadlineto, array('deadlineto' => ''));
     }
-    if ($showstaledays && $staledays !== 14) {
-        $activefilterchips[] = $buildchip(get_string('staledays', 'local_jobportal') . ': ' . $staledays, array('staledays' => 14));
+    if ($showstaledays && $staledays !== $staledaysbaseline) {
+        $activefilterchips[] = $buildchip(
+            get_string('staledays', 'local_jobportal') . ': ' . $staledays,
+            array('staledays' => $staledaysbaseline)
+        );
     }
     if ($preset !== '' && isset($presetoptions[$preset])) {
         $activefilterchips[] = $buildchip(
@@ -677,7 +1351,15 @@ if ($ismanager) {
 
     $columngroups = array(
         get_string('jobinformation', 'local_jobportal') => array('jobid', 'title', 'company', 'status', 'jobtype', 'location', 'salary', 'listed', 'deadline', 'updated'),
-        get_string('funnelanalytics', 'local_jobportal') => array('applications', 'shortlisted', 'offerconversion', 'lastapplication', 'dayssincelastapplication'),
+        get_string('funnelanalytics', 'local_jobportal') => array(
+            'applications',
+            'shortlisted',
+            'offerconversion',
+            'lastapplication',
+            'dayssincelastapplication',
+            'lastactivity',
+            'daysinactive',
+        ),
     );
 
     echo html_writer::start_div('card mb-3 jp-filter-card jp-sticky-filters');
@@ -860,7 +1542,7 @@ if ($ismanager) {
     echo html_writer::end_div();
     echo html_writer::start_div('col-md-5 mb-2 jp-filter-actions pt-md-4');
     echo html_writer::tag('button', get_string('filter'), array('type' => 'submit', 'class' => 'btn btn-primary mr-2'));
-    echo html_writer::link($baseurl, get_string('resetfilters', 'local_jobportal'), array('class' => 'btn btn-outline-secondary'));
+    echo html_writer::link($resetfiltersurl, get_string('resetfilters', 'local_jobportal'), array('class' => 'btn btn-outline-secondary'));
     echo html_writer::end_div();
     echo html_writer::end_div();
 
@@ -941,6 +1623,26 @@ if ($ismanager) {
     );
     $where = array('1=1');
     $having = array();
+    $lastactivityhavingexpr = "GREATEST(
+        COALESCE(MIN(j.timemodified), 0),
+        COALESCE(MIN(j.timecreated), 0),
+        COALESCE(MAX(
+            GREATEST(
+                COALESCE(a.timemodified, 0),
+                COALESCE(a.timecreated, 0),
+                COALESCE((
+                    SELECT MAX(e.timecreated)
+                      FROM {local_jobportal_appstage_events} e
+                     WHERE e.applicationid = a.id
+                ), 0),
+                COALESCE((
+                    SELECT MAX(n.timecreated)
+                      FROM {local_jobportal_appnotes} n
+                     WHERE n.applicationid = a.id
+                ), 0)
+            )
+        ), 0)
+    )";
 
     if ($search !== '') {
         $where[] = '(' .
@@ -1013,13 +1715,35 @@ if ($ismanager) {
     }
 
     switch ($jobstatus) {
-        case 'active':
-            $where[] = 'j.status = 1';
+        case 'applicationsopen':
+            $where[] = 'j.drivestate = :stateopen';
             $where[] = '(j.deadline IS NULL OR j.deadline = 0 OR j.deadline >= :nowactive)';
+            $params['stateopen'] = 'applicationsopen';
             $params['nowactive'] = $now;
             break;
-        case 'inactive':
-            $where[] = 'j.status = 0';
+        case 'applicationsclosed':
+            $where[] = 'j.drivestate = :stateclosed';
+            $params['stateclosed'] = 'applicationsclosed';
+            break;
+        case 'selectioninprogress':
+            $where[] = 'j.drivestate = :stateselection';
+            $params['stateselection'] = 'selectioninprogress';
+            break;
+        case 'completed':
+            $where[] = 'j.drivestate = :statecompleted';
+            $params['statecompleted'] = 'completed';
+            break;
+        case 'archived':
+            $where[] = 'j.drivestate = :statearchived';
+            $params['statearchived'] = 'archived';
+            break;
+        case 'onhold':
+            $where[] = 'j.drivestate = :stateonhold';
+            $params['stateonhold'] = 'onhold';
+            break;
+        case 'cancelled':
+            $where[] = 'j.drivestate = :statecancelled';
+            $params['statecancelled'] = 'cancelled';
             break;
         case 'expired':
             $where[] = 'j.deadline > 0';
@@ -1027,15 +1751,12 @@ if ($ismanager) {
             $params['nowexpired'] = $now;
             break;
         case 'closingsoon':
-            $where[] = 'j.status = 1';
+            $where[] = 'j.drivestate = :stateopenclosing';
             $where[] = 'j.deadline >= :nowclosing';
             $where[] = 'j.deadline <= :closingsoon';
+            $params['stateopenclosing'] = 'applicationsopen';
             $params['nowclosing'] = $now;
             $params['closingsoon'] = $now + (7 * DAYSECS);
-            break;
-        case 'closed':
-            $where[] = '(j.status = 0 OR (j.deadline > 0 AND j.deadline < :nowclosed))';
-            $params['nowclosed'] = $now;
             break;
         case 'stale':
             $staleconds = $staledays * DAYSECS;
@@ -1046,6 +1767,13 @@ if ($ismanager) {
             break;
         default:
             break;
+    }
+
+    if (!empty($noactivityaged)) {
+        $activityseconds = $staledays * DAYSECS;
+        $having[] = '(:activitynow - ' . $lastactivityhavingexpr . ') >= :activityseconds';
+        $params['activitynow'] = $now;
+        $params['activityseconds'] = $activityseconds;
     }
 
     if ($hasapps === 'yes') {
@@ -1059,13 +1787,33 @@ if ($ismanager) {
             SUM(CASE WHEN a.shortliststatus = :shortlistedstatus1 THEN 1 ELSE 0 END) AS shortlistedcount,
             SUM(CASE WHEN a.shortliststatus = :shortlistedstatus2 AND a.status = :offermadestatus THEN 1 ELSE 0 END) AS offermadecount,
             SUM(CASE WHEN a.shortliststatus = :shortlistedstatus3 AND a.status = :acceptedstatus THEN 1 ELSE 0 END) AS acceptedcount,
-            MAX(a.timecreated) AS lastapplicationat";
+            MAX(a.timecreated) AS lastapplicationat,
+            GREATEST(
+                COALESCE(MIN(j.timemodified), 0),
+                COALESCE(MIN(j.timecreated), 0),
+                COALESCE(MAX(
+                    GREATEST(
+                        COALESCE(a.timemodified, 0),
+                        COALESCE(a.timecreated, 0),
+                        COALESCE((
+                            SELECT MAX(e.timecreated)
+                              FROM {local_jobportal_appstage_events} e
+                             WHERE e.applicationid = a.id
+                        ), 0),
+                        COALESCE((
+                            SELECT MAX(n.timecreated)
+                              FROM {local_jobportal_appnotes} n
+                             WHERE n.applicationid = a.id
+                        ), 0)
+                    )
+                ), 0)
+            ) AS lastactivityat";
 
-    $fromsql = " FROM {local_jobportal_jobs} j
+    $fromsql = "{local_jobportal_jobs} j
          LEFT JOIN {local_jobportal_companies} c ON c.id = j.companyid
          LEFT JOIN {local_jobportal_applications} a ON a.jobid = j.id";
 
-    $wheresql = ' WHERE ' . implode(' AND ', $where);
+    $whereclause = implode(' AND ', $where);
     $groupsql = ' GROUP BY j.id, c.id';
     $havingsql = empty($having) ? '' : (' HAVING ' . implode(' AND ', $having));
 
@@ -1079,6 +1827,12 @@ if ($ismanager) {
         } else {
             $ordersql = ' ORDER BY (lastapplicationat IS NULL) ASC, lastapplicationat ASC';
         }
+    } else if ($sortby === 'daysinactive') {
+        if ($sortdirection === 'ASC') {
+            $ordersql = ' ORDER BY lastactivityat DESC';
+        } else {
+            $ordersql = ' ORDER BY lastactivityat ASC';
+        }
     } else if ($sortby === 'deadline') {
         $ordersql = " ORDER BY (j.deadline IS NULL OR j.deadline = 0) ASC, j.deadline $sortdirection";
     } else {
@@ -1090,6 +1844,7 @@ if ($ismanager) {
             'salary' => 'COALESCE(j.salaryminannual, j.salarymaxannual, 0)',
             'applications' => 'applicationscount',
             'shortlisted' => 'shortlistedcount',
+            'lastactivity' => 'lastactivityat',
             'company' => 'companyprofilename',
             'title' => 'j.title',
         );
@@ -1098,21 +1853,15 @@ if ($ismanager) {
     }
     $ordersql .= ', j.timecreated DESC';
 
-    $countsql = 'SELECT COUNT(1) FROM (SELECT j.id' . $fromsql . $wheresql . $groupsql . $havingsql . ') jobcount';
+    $countsql = 'SELECT COUNT(1) FROM (SELECT j.id FROM ' . $fromsql . ' WHERE ' . $whereclause . $groupsql . $havingsql . ') jobcount';
     $totaljobs = (int)$DB->count_records_sql($countsql, $params);
 
-    $sql = 'SELECT ' . $selectfields . $fromsql . $wheresql . $groupsql . $havingsql . $ordersql;
-    $jobs = $DB->get_records_sql($sql, $params, $page * $perpage, $perpage);
-
-    if (empty($jobs)) {
+    if ($totaljobs === 0) {
         echo html_writer::tag('p', get_string('nojobs', 'local_jobportal'), array('class' => 'alert alert-info'));
     } else {
         $pagingparams = $pageurlparams;
         unset($pagingparams['page']);
         $pagingurl = new moodle_url('/local/jobportal/index.php', $pagingparams);
-        if ($totaljobs > $perpage) {
-            echo $OUTPUT->paging_bar($totaljobs, $page, $perpage, $pagingurl);
-        }
 
         $start = ($page * $perpage) + 1;
         $end = min($totaljobs, ($page * $perpage) + $perpage);
@@ -1132,7 +1881,11 @@ if ($ismanager) {
         );
 
         echo html_writer::start_div('jp-bulk-actions mb-2');
-        echo html_writer::select($bulkactionoptions, 'bulkaction', '', false, array('class' => 'custom-select')); 
+        echo html_writer::start_div('form-check mr-2 mb-0 jp-bulk-selectall');
+        echo html_writer::checkbox('selectall', 1, false, '', array('id' => 'jp-select-all', 'class' => 'form-check-input'));
+        echo html_writer::tag('label', get_string('selectall', 'moodle'), array('for' => 'jp-select-all', 'class' => 'form-check-label mb-0'));
+        echo html_writer::end_div();
+        echo html_writer::select($bulkactionoptions, 'bulkaction', '', false, array('class' => 'custom-select custom-select-sm'));
         echo html_writer::empty_tag('input', array(
             'type' => 'number',
             'name' => 'extenddays',
@@ -1144,156 +1897,26 @@ if ($ismanager) {
         echo html_writer::end_div();
 
         echo html_writer::start_tag('div', array('class' => 'table-responsive'));
-        $table = new html_table();
-        $selectall = html_writer::empty_tag('input', array('type' => 'checkbox', 'id' => 'jp-select-all'));
-        $table->head = array($selectall);
-        foreach ($columnorder as $key) {
-            if (!in_array($key, $selectedcols, true)) {
-                continue;
-            }
-            $table->head[] = $columnoptions[$key];
-        }
-        $table->head[] = get_string('actions');
-        $table->attributes['class'] = 'table table-sm table-striped table-bordered jp-table jp-data-table jp-jobs-table';
-
-        foreach ($jobs as $job) {
-            $companyname = !empty($job->companyprofilename) ? $job->companyprofilename : $job->company;
-            $companycell = s($companyname);
-            if (!empty($job->companyprofileid)) {
-                $companycell = html_writer::link(
-                    new moodle_url('/local/jobportal/company.php', array('id' => $job->companyprofileid)),
-                    s($companyname)
-                );
-            }
-
-            $applicationscount = (int)$job->applicationscount;
-            $shortlistedcount = (int)$job->shortlistedcount;
-            $acceptedcount = (int)$job->acceptedcount;
-            $offerconversion = $applicationscount > 0 ? format_float(($acceptedcount / $applicationscount) * 100, 1) . '%' : '0%';
-
-            $deadline = !empty($job->deadline) ? (int)$job->deadline : 0;
-            $isexpired = !empty($deadline) && $deadline < $now;
-            $isclosingsoon = (int)$job->status === 1 && !empty($deadline) && $deadline >= $now && $deadline <= ($now + (7 * DAYSECS));
-
-            if ((int)$job->status === 0) {
-                $statuslabel = get_string('jobstatusinactive', 'local_jobportal');
-                $statusbadge = 'badge badge-secondary';
-            } else if ($isexpired) {
-                $statuslabel = get_string('jobstatusexpired', 'local_jobportal');
-                $statusbadge = 'badge badge-dark';
-            } else if ($isclosingsoon) {
-                $statuslabel = get_string('jobstatusclosingsoon', 'local_jobportal');
-                $statusbadge = 'badge badge-warning';
-            } else {
-                $statuslabel = get_string('jobstatusactive', 'local_jobportal');
-                $statusbadge = 'badge badge-success';
-            }
-
-            $lastapplicationlabel = '-';
-            $dayssincelastapplication = '-';
-            if (!empty($job->lastapplicationat)) {
-                $lastapplicationlabel = userdate($job->lastapplicationat, $dateformat);
-                $dayssincelastapplication = (string)max(0, (int)floor(($now - (int)$job->lastapplicationat) / DAYSECS));
-            }
-
-            $actions = array();
-            $actions[] = html_writer::link(
-                new moodle_url('/local/jobportal/view.php', array('id' => $job->id)),
-                get_string('viewjob', 'local_jobportal')
-            );
-            if ($canpost) {
-                $actions[] = html_writer::link(
-                    new moodle_url('/local/jobportal/post.php', array('id' => $job->id)),
-                    get_string('editjob', 'local_jobportal')
-                );
-                $actions[] = html_writer::link(
-                    new moodle_url('/local/jobportal/post.php', array('cloneid' => $job->id)),
-                    get_string('clonejob', 'local_jobportal')
-                );
-            }
-            if ($canviewapplications) {
-                $actions[] = html_writer::link(
-                    new moodle_url('/local/jobportal/applications.php', array('jobid' => $job->id)),
-                    get_string('viewapplications', 'local_jobportal')
-                );
-            }
-
-            $row = array();
-            $row[] = html_writer::empty_tag('input', array('type' => 'checkbox', 'name' => 'jobids[]', 'value' => (int)$job->id, 'class' => 'jp-job-select'));
-
-            foreach ($columnorder as $key) {
-                if (!in_array($key, $selectedcols, true)) {
-                    continue;
-                }
-                switch ($key) {
-                    case 'jobid':
-                        $row[] = html_writer::link(
-                            new moodle_url('/local/jobportal/view.php', array('id' => $job->id)),
-                            (string)$job->id
-                        );
-                        break;
-                    case 'title':
-                        $row[] = html_writer::link(
-                            new moodle_url('/local/jobportal/view.php', array('id' => $job->id)),
-                            format_string($job->title)
-                        );
-                        break;
-                    case 'company':
-                        $row[] = $companycell;
-                        break;
-                    case 'status':
-                        $row[] = html_writer::tag('span', $statuslabel, array('class' => $statusbadge));
-                        break;
-                    case 'jobtype':
-                        $row[] = local_jobportal_format_jobtype($job->jobtype);
-                        break;
-                    case 'location':
-                        $row[] = !empty($job->location) ? s($job->location) : '-';
-                        break;
-                    case 'salary':
-                        $salarydisplay = local_jobportal_get_job_salary_display($job);
-                        $row[] = $salarydisplay !== '' ? s($salarydisplay) : '-';
-                        break;
-                    case 'listed':
-                        $row[] = userdate($job->timecreated, $dateformat);
-                        break;
-                    case 'deadline':
-                        $row[] = !empty($job->deadline) ? userdate($job->deadline, $datetimeformat) : '-';
-                        break;
-                    case 'applications':
-                        $row[] = (string)$applicationscount;
-                        break;
-                    case 'shortlisted':
-                        $row[] = (string)$shortlistedcount;
-                        break;
-                    case 'offerconversion':
-                        $row[] = $offerconversion;
-                        break;
-                    case 'lastapplication':
-                        $row[] = $lastapplicationlabel;
-                        break;
-                    case 'dayssincelastapplication':
-                        $row[] = $dayssincelastapplication;
-                        break;
-                    case 'updated':
-                        $row[] = userdate($job->timemodified, $dateformat);
-                        break;
-                    default:
-                        break;
-                }
-            }
-
-            $row[] = implode(' | ', $actions);
-            $table->data[] = $row;
-        }
-
-        echo html_writer::table($table);
+        $tablewhere = $whereclause . $groupsql . $havingsql . $ordersql;
+        $jobstable = new local_jobportal_jobs_table(
+            'local-jobportal-jobs',
+            $selectedcols,
+            $columnoptions,
+            $canpost,
+            $canviewapplications,
+            $dateformat,
+            $datetimeformat,
+            $now,
+            $pagingparams,
+            $sortby,
+            $sortdir
+        );
+        $jobstable->define_baseurl($pagingurl);
+        $jobstable->set_count_sql($countsql, $params);
+        $jobstable->set_sql($selectfields, $fromsql, $tablewhere, $params);
+        $jobstable->out($perpage, false);
         echo html_writer::end_tag('div');
         echo html_writer::end_tag('form');
-
-        if ($totaljobs > $perpage) {
-            echo $OUTPUT->paging_bar($totaljobs, $page, $perpage, $pagingurl);
-        }
     }
 } else {
     // Search and filter form
@@ -1439,48 +2062,104 @@ if ($ismanager) {
         foreach ($jobs as $job) {
             $joburl = new moodle_url('/local/jobportal/view.php', array('id' => $job->id));
             $companyname = !empty($job->companyprofilename) ? $job->companyprofilename : $job->company;
-
-            echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-            echo html_writer::start_tag('div', array('class' => 'card-body'));
-
-            echo html_writer::tag('h5', format_string($job->title), array('class' => 'card-title'));
-            echo html_writer::tag('h6', format_string($companyname), array('class' => 'card-subtitle mb-2 text-muted'));
+            $companylogo = null;
             if (!empty($job->companyprofileid)) {
-                echo html_writer::link(
-                    new moodle_url('/local/jobportal/company.php', array('id' => $job->companyprofileid)),
-                    get_string('viewcompanyprofile', 'local_jobportal'),
-                    array('class' => 'small d-inline-block mb-2')
-                );
+                $companylogo = local_jobportal_get_company_logo_url((int)$job->companyprofileid, $context);
             }
+            $companyinitials = '';
+            if ($companyname !== '') {
+                $companyparts = preg_split('/\s+/', trim((string)$companyname));
+                if (!empty($companyparts)) {
+                    $first = core_text::substr($companyparts[0], 0, 1);
+                    $second = !empty($companyparts[1]) ? core_text::substr($companyparts[1], 0, 1) : '';
+                    $companyinitials = core_text::strtoupper($first . $second);
+                }
+            }
+            if ($companyinitials === '') {
+                $companyinitials = '?';
+            }
+            $salarydisplay = local_jobportal_get_job_salary_display($job, null, true);
+            $salaryvalue = $salarydisplay !== '' ? format_string($salarydisplay) : '-';
+            $locationvalue = !empty($job->location) ? format_string($job->location) : '-';
+            $deadlinevalue = !empty($job->deadline) ? userdate($job->deadline, $datetimeformat) : '-';
+            $listedvalue = userdate($job->timecreated, $dateformat);
+            $description = shorten_text(trim(strip_tags($job->description)), 320);
 
-            echo html_writer::start_tag('p', array('class' => 'card-text'));
-            echo html_writer::tag('strong', get_string('jobtype', 'local_jobportal') . ': ');
-            echo local_jobportal_format_jobtype($job->jobtype) . '<br>';
+            $isapplied = !empty($userapplicationsbyjob[$job->id]);
+            $drivestate = local_jobportal_get_job_drive_state($job);
+            $drivestatelabel = local_jobportal_get_job_drive_state_label($drivestate);
+            $drivestatebadgeclass = local_jobportal_get_job_drive_state_badge_class($drivestate);
+            $isexpired = !empty($job->deadline) && ((int)$job->deadline < $now) && $drivestate === 'applicationsopen';
+            $isclosingtoday = !empty($job->deadline) && $drivestate === 'applicationsopen' && !$isexpired &&
+                (date('Y-m-d', (int)$job->deadline) === date('Y-m-d', $now));
+            $isclosingsoon = !empty($job->deadline) && $drivestate === 'applicationsopen' && !$isexpired && !$isclosingtoday &&
+                ((int)$job->deadline <= ($now + (7 * DAYSECS)));
 
+            echo html_writer::start_tag('div', array('class' => 'card jp-job-card'));
+            echo html_writer::start_tag('div', array('class' => 'card-body jp-job-card-body'));
+
+            echo html_writer::start_div('jp-job-card-head');
+            echo html_writer::tag('h5', format_string($job->title), array('class' => 'jp-job-card-title'));
+            echo html_writer::start_div('jp-job-company-head');
+            if ($companylogo) {
+                echo html_writer::empty_tag('img', array(
+                    'src' => $companylogo->out(false),
+                    'alt' => format_string($companyname),
+                    'class' => 'jp-job-company-logo',
+                    'loading' => 'lazy',
+                ));
+            } else {
+                echo html_writer::tag('div', s($companyinitials), array('class' => 'jp-job-company-fallback'));
+            }
+            echo html_writer::start_div('jp-job-company-meta');
+            echo html_writer::tag('h6', format_string($companyname), array('class' => 'card-subtitle mb-1 text-muted'));
             if (!empty($job->location)) {
-                echo html_writer::tag('strong', get_string('location', 'local_jobportal') . ': ');
-                echo format_string($job->location) . '<br>';
+                echo html_writer::div(format_string($job->location), 'jp-job-company-location');
             }
+            echo html_writer::end_div();
+            echo html_writer::end_div();
+            echo html_writer::end_div();
 
-            $salarydisplay = local_jobportal_get_job_salary_display($job);
-            if ($salarydisplay !== '') {
-                echo html_writer::tag('strong', get_string('salary', 'local_jobportal') . ': ');
-                echo format_string($salarydisplay) . '<br>';
+            echo html_writer::start_div('jp-job-card-badges');
+            echo html_writer::tag('span', $drivestatelabel, array('class' => $drivestatebadgeclass));
+            if ($isexpired) {
+                echo html_writer::tag('span', get_string('jobstatusexpired', 'local_jobportal'), array('class' => 'badge badge-danger'));
+            } else if ($isclosingtoday) {
+                echo html_writer::tag('span', get_string('presetdeadlinetoday', 'local_jobportal'), array('class' => 'badge badge-warning'));
+            } else if ($isclosingsoon) {
+                echo html_writer::tag('span', get_string('jobstatusclosingsoon', 'local_jobportal'), array('class' => 'badge badge-info'));
             }
-
-            if (!empty($job->deadline)) {
-                echo html_writer::tag('strong', get_string('deadline', 'local_jobportal') . ': ');
-                echo userdate($job->deadline, $datetimeformat) . '<br>';
+            if ($isapplied) {
+                echo html_writer::tag('span', get_string('applied', 'local_jobportal'), array('class' => 'badge badge-primary'));
             }
+            echo html_writer::end_div();
 
-            echo html_writer::tag('strong', get_string('joblistedon', 'local_jobportal') . ': ');
-            echo userdate($job->timecreated, $dateformat) . '<br>';
+            echo html_writer::start_div('jp-job-card-meta-grid');
+            echo html_writer::div(
+                html_writer::div(get_string('salary', 'local_jobportal'), 'jp-job-card-meta-label') .
+                    html_writer::div($salaryvalue, 'jp-job-card-meta-value'),
+                'jp-job-card-meta-item'
+            );
+            echo html_writer::div(
+                html_writer::div(get_string('deadline', 'local_jobportal'), 'jp-job-card-meta-label') .
+                    html_writer::div($deadlinevalue, 'jp-job-card-meta-value'),
+                'jp-job-card-meta-item'
+            );
+            echo html_writer::div(
+                html_writer::div(get_string('joblistedon', 'local_jobportal'), 'jp-job-card-meta-label') .
+                    html_writer::div($listedvalue, 'jp-job-card-meta-value'),
+                'jp-job-card-meta-item'
+            );
+            echo html_writer::div(
+                html_writer::div(get_string('location', 'local_jobportal'), 'jp-job-card-meta-label') .
+                    html_writer::div($locationvalue, 'jp-job-card-meta-value'),
+                'jp-job-card-meta-item'
+            );
+            echo html_writer::end_div();
 
-            echo html_writer::end_tag('p');
+            echo html_writer::div(s($description), 'jp-job-card-desc');
 
-            echo html_writer::tag('p', shorten_text(strip_tags($job->description), 200));
-
-            if (!empty($userapplicationsbyjob[$job->id])) {
+            if ($isapplied) {
                 $application = $userapplicationsbyjob[$job->id];
                 $events = !empty($usereventsbyapp[$application->id]) ? $usereventsbyapp[$application->id] : array();
                 $shortliststatus = local_jobportal_get_applicant_visible_shortlist_status($application);
@@ -1521,21 +2200,31 @@ if ($ismanager) {
                     }
                 }
 
-                echo html_writer::tag(
-                    'p',
-                    html_writer::tag('strong', get_string('yourapplicationstatus', 'local_jobportal') . ': ') .
-                    html_writer::tag('span', $shortlistlabel, array('class' => $shortlistclass)) .
-                    ' ' .
-                    html_writer::tag('span', get_string('postshortliststage', 'local_jobportal') . ': ', array('class' => 'ml-2')) .
-                    ($shortliststatus === 'shortlisted'
-                        ? html_writer::tag('span', $poststatuslabel, array('class' => $poststatusclass))
-                        : $poststatuslabel),
-                    array('class' => 'mb-2')
-                );
+                echo html_writer::start_div('jp-job-user-status');
+                echo html_writer::div(get_string('yourapplicationstatus', 'local_jobportal'), 'jp-job-user-status-label');
+                echo html_writer::start_div('jp-job-user-status-chips');
+                echo html_writer::tag('span', $shortlistlabel, array('class' => $shortlistclass));
+                if ($shortliststatus === 'shortlisted') {
+                    echo html_writer::tag(
+                        'span',
+                        get_string('postshortliststage', 'local_jobportal') . ': ' . $poststatuslabel,
+                        array('class' => $poststatusclass)
+                    );
+                }
+                echo html_writer::end_div();
+                echo html_writer::end_div();
             }
 
-            echo html_writer::link($joburl, get_string('viewjob', 'local_jobportal'),
-                array('class' => 'btn btn-primary'));
+            echo html_writer::start_div('jp-job-card-actions');
+            echo html_writer::link($joburl, get_string('viewjob', 'local_jobportal'), array('class' => 'btn btn-primary'));
+            if (!empty($job->companyprofileid)) {
+                echo html_writer::link(
+                    new moodle_url('/local/jobportal/company.php', array('id' => $job->companyprofileid)),
+                    get_string('viewcompanyprofile', 'local_jobportal'),
+                    array('class' => 'btn btn-outline-secondary')
+                );
+            }
+            echo html_writer::end_div();
 
             echo html_writer::end_tag('div');
             echo html_writer::end_tag('div');

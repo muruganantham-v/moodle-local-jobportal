@@ -23,6 +23,19 @@ if ($DB->record_exists('local_jobportal_applications', array('jobid' => $jobid, 
     );
 }
 
+$drivestate = local_jobportal_get_job_drive_state($job);
+$drivestatelabel = local_jobportal_get_job_drive_state_label($drivestate);
+
+// Check drive state.
+if ($drivestate !== 'applicationsopen') {
+    redirect(
+        new moodle_url('/local/jobportal/view.php', array('id' => $jobid)),
+        get_string('jobdrivenotacceptingapplications', 'local_jobportal', $drivestatelabel),
+        null,
+        \core\output\notification::NOTIFY_ERROR
+    );
+}
+
 // Check deadline.
 if (!empty($job->deadline) && $job->deadline < time()) {
     redirect(

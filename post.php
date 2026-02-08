@@ -594,6 +594,23 @@ if ($mform->is_cancelled()) {
     $job->deadline = !empty($data->deadline) ? $data->deadline : null;
     $job->status = $data->status;
     $job->timemodified = time();
+    if ($id && $existingjob) {
+        $existingdrivestate = local_jobportal_get_job_drive_state($existingjob);
+        $newstatus = (int)$job->status;
+        if ($newstatus !== 1 && in_array($existingdrivestate, array('applicationsopen', 'applicationsclosed', 'selectioninprogress', 'onhold'), true)) {
+            $job->drivestate = 'archived';
+            $job->driveoutcome = null;
+            $job->drivenote = null;
+            $job->drivestateupdatedby = (int)$USER->id;
+            $job->drivestateupdatedat = $job->timemodified;
+        } else if ($newstatus === 1 && $existingdrivestate === 'archived' && (int)$existingjob->status === 0) {
+            $job->drivestate = 'applicationsopen';
+            $job->driveoutcome = null;
+            $job->drivenote = null;
+            $job->drivestateupdatedby = (int)$USER->id;
+            $job->drivestateupdatedat = $job->timemodified;
+        }
+    }
 
     if ($id) {
         $job->id = $id;
@@ -601,6 +618,11 @@ if ($mform->is_cancelled()) {
         local_jobportal_replace_job_salary_stages((int)$id, $salarymodel === 'progressive' ? $salarystages : array());
         $message = get_string('jobupdated', 'local_jobportal');
     } else {
+        $job->drivestate = 'applicationsopen';
+        $job->driveoutcome = null;
+        $job->drivenote = null;
+        $job->drivestateupdatedby = (int)$USER->id;
+        $job->drivestateupdatedat = $job->timemodified;
         $job->postedby = $USER->id;
         $job->timecreated = time();
         $newjobid = (int)$DB->insert_record('local_jobportal_jobs', $job);

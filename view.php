@@ -16,7 +16,68 @@ $companyprofile = !empty($job->companyid) ? local_jobportal_get_company((int)$jo
 $companyname = $companyprofile ? $companyprofile->name : $job->company;
 $companylogo = null;
 $companystats = null;
-$canviewcompanystats = has_capability('local/jobportal:managejobs', $context);
+$canmanagejobs = has_capability('local/jobportal:managejobs', $context);
+$canviewcompanystats = $canmanagejobs;
+$drivestate = local_jobportal_get_job_drive_state($job);
+$driveoutcome = !empty($job->driveoutcome) ? local_jobportal_normalize_drive_outcome($job->driveoutcome) : '';
+$drivestatelabel = local_jobportal_get_job_drive_state_label($drivestate);
+$drivebadgeclass = local_jobportal_get_job_drive_state_badge_class($drivestate);
+$driveoutcomelabel = local_jobportal_get_job_drive_outcome_label($driveoutcome);
+
+if ($canmanagejobs && data_submitted() && optional_param('updatedrivestate', 0, PARAM_BOOL) && confirm_sesskey()) {
+    $newstate = local_jobportal_normalize_drive_state(optional_param('drivestate', $drivestate, PARAM_ALPHANUMEXT));
+    $newoutcome = local_jobportal_normalize_drive_outcome(optional_param('driveoutcome', '', PARAM_ALPHANUMEXT));
+    $newnote = trim(optional_param('drivenote', '', PARAM_TEXT));
+
+    if (!local_jobportal_is_drive_transition_allowed($drivestate, $newstate)) {
+        $transition = (object)array(
+            'from' => $drivestatelabel,
+            'to' => local_jobportal_get_job_drive_state_label($newstate),
+        );
+        redirect(
+            new moodle_url('/local/jobportal/view.php', array('id' => $id)),
+            get_string('error:drivestatetransition', 'local_jobportal', $transition),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+
+    if ($newstate === 'completed' && $newoutcome === '') {
+        redirect(
+            new moodle_url('/local/jobportal/view.php', array('id' => $id)),
+            get_string('error:driveoutcomerequired', 'local_jobportal'),
+            null,
+            \core\output\notification::NOTIFY_ERROR
+        );
+    }
+    if ($newstate !== 'completed') {
+        $newoutcome = '';
+    }
+
+    $newstatus = 1;
+    if (in_array($newstate, array('completed', 'archived', 'cancelled'), true)) {
+        $newstatus = 0;
+    }
+
+    $now = time();
+    $update = new stdClass();
+    $update->id = (int)$job->id;
+    $update->status = $newstatus;
+    $update->drivestate = $newstate;
+    $update->driveoutcome = $newoutcome !== '' ? $newoutcome : null;
+    $update->drivenote = $newnote !== '' ? $newnote : null;
+    $update->drivestateupdatedby = (int)$USER->id;
+    $update->drivestateupdatedat = $now;
+    $update->timemodified = $now;
+    $DB->update_record('local_jobportal_jobs', $update);
+
+    redirect(
+        new moodle_url('/local/jobportal/view.php', array('id' => $id)),
+        get_string('drivestateupdated', 'local_jobportal'),
+        null,
+        \core\output\notification::NOTIFY_SUCCESS
+    );
+}
 
 if ($companyprofile) {
     $companylogo = local_jobportal_get_company_logo_url($companyprofile->id, $context);
@@ -39,7 +100,7 @@ if (has_capability('local/jobportal:apply', $context)) {
 }
 
 $applicationcount = 0;
-if (has_capability('local/jobportal:managejobs', $context)) {
+if ($canmanagejobs) {
     $applicationcount = (int)$DB->count_records('local_jobportal_applications', array('jobid' => $job->id));
 }
 
@@ -126,6 +187,18 @@ echo html_writer::tag('h5', get_string('jobinformation', 'local_jobportal'), arr
 
 echo html_writer::start_tag('dl', array('class' => 'row'));
 
+echo html_writer::tag('dt', get_string('jobdrivestate', 'local_jobportal'), array('class' => 'col-sm-3'));
+echo html_writer::tag(
+    'dd',
+    html_writer::tag('span', $drivestatelabel, array('class' => $drivebadgeclass)),
+    array('class' => 'col-sm-9')
+);
+
+if ($driveoutcome !== '') {
+    echo html_writer::tag('dt', get_string('jobdriveoutcome', 'local_jobportal'), array('class' => 'col-sm-3'));
+    echo html_writer::tag('dd', $driveoutcomelabel, array('class' => 'col-sm-9'));
+}
+
 echo html_writer::tag('dt', get_string('jobtype', 'local_jobportal'), array('class' => 'col-sm-3'));
 echo html_writer::tag('dd', local_jobportal_format_jobtype($job->jobtype), array('class' => 'col-sm-9'));
 
@@ -176,6 +249,95 @@ echo html_writer::end_tag('dl');
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
 
+if ($canmanagejobs) {
+    $driveoptions = local_jobportal_get_drive_state_options();
+    $nextstateoptions = array();
+    foreach ($driveoptions as $statekey => $statelabel) {
+        if ($statekey === $drivestate || local_jobportal_is_drive_transition_allowed($drivestate, $statekey)) {
+            $nextstateoptions[$statekey] = $statelabel;
+        }
+    }
+
+    $driveoutcomeoptions = array('' => '-') + local_jobportal_get_drive_outcome_options();
+    $showdriveoutcome = ($drivestate === 'completed');
+    $updatedbytext = '-';
+    if (!empty($job->drivestateupdatedby)) {
+        $userfields = 'id,firstname,lastname,firstnamephonetic,lastnamephonetic,middlename,alternatename';
+        $updatedbyuser = core_user::get_user((int)$job->drivestateupdatedby, $userfields, IGNORE_MISSING);
+        if ($updatedbyuser) {
+            $updatedbytext = fullname($updatedbyuser);
+        }
+    }
+    $updatedattext = !empty($job->drivestateupdatedat) ? userdate((int)$job->drivestateupdatedat, $datetimeformat) : '-';
+
+    echo html_writer::start_tag('div', array('class' => 'card mb-3'));
+    echo html_writer::start_tag('div', array('class' => 'card-body'));
+    echo html_writer::tag('h5', get_string('managedrivestate', 'local_jobportal'), array('class' => 'card-title'));
+    echo html_writer::tag(
+        'p',
+        get_string('drivestateupdatedmeta', 'local_jobportal', (object)array('user' => $updatedbytext, 'time' => $updatedattext)),
+        array('class' => 'text-muted small mb-3')
+    );
+
+    echo html_writer::start_tag('form', array('method' => 'post', 'action' => $PAGE->url));
+    echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'updatedrivestate', 'value' => 1));
+    echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+
+    echo html_writer::start_div('row');
+    echo html_writer::start_div('col-md-4 mb-2');
+    echo html_writer::tag('label', get_string('jobdrivestate', 'local_jobportal'), array('for' => 'jp-drivestate', 'class' => 'small text-muted d-block'));
+    echo html_writer::select($nextstateoptions, 'drivestate', $drivestate, false, array('class' => 'custom-select', 'id' => 'jp-drivestate'));
+    echo html_writer::end_div();
+
+    $outcomestyle = $showdriveoutcome ? '' : 'display:none;';
+    $outcomeattrs = array('class' => 'custom-select', 'id' => 'jp-driveoutcome');
+    if (!$showdriveoutcome) {
+        $outcomeattrs['disabled'] = 'disabled';
+    }
+    echo html_writer::start_div('col-md-4 mb-2', array('id' => 'jp-driveoutcome-wrap', 'style' => $outcomestyle));
+    echo html_writer::tag('label', get_string('jobdriveoutcome', 'local_jobportal'), array('for' => 'jp-driveoutcome', 'class' => 'small text-muted d-block'));
+    echo html_writer::select($driveoutcomeoptions, 'driveoutcome', $driveoutcome, false, $outcomeattrs);
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+
+    echo html_writer::start_div('mb-2');
+    echo html_writer::tag('label', get_string('jobdrivenote', 'local_jobportal'), array('for' => 'jp-drivenote', 'class' => 'small text-muted d-block'));
+    echo html_writer::tag('textarea', !empty($job->drivenote) ? s($job->drivenote) : '', array(
+        'name' => 'drivenote',
+        'id' => 'jp-drivenote',
+        'class' => 'form-control',
+        'rows' => 3,
+        'placeholder' => get_string('jobdrivenoteplaceholder', 'local_jobportal'),
+    ));
+    echo html_writer::end_div();
+
+    echo html_writer::tag('button', get_string('updatedrivestate', 'local_jobportal'), array('type' => 'submit', 'class' => 'btn btn-primary'));
+    echo html_writer::end_tag('form');
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
+
+    $PAGE->requires->js_init_code("
+        (function() {
+            var stateSelect = document.getElementById('jp-drivestate');
+            var outcomeWrap = document.getElementById('jp-driveoutcome-wrap');
+            var outcomeSelect = document.getElementById('jp-driveoutcome');
+            if (!stateSelect || !outcomeWrap || !outcomeSelect) {
+                return;
+            }
+            var sync = function() {
+                var show = stateSelect.value === 'completed';
+                outcomeWrap.style.display = show ? '' : 'none';
+                outcomeSelect.disabled = !show;
+                if (!show) {
+                    outcomeSelect.value = '';
+                }
+            };
+            stateSelect.addEventListener('change', sync);
+            sync();
+        })();
+    ");
+}
+
 // Requirements
 if (!empty($job->requirements)) {
     echo html_writer::start_tag('div', array('class' => 'card mb-3'));
@@ -191,6 +353,7 @@ if (!empty($job->requirements)) {
 // Application button
 if (has_capability('local/jobportal:apply', $context)) {
     $hasprofileresume = local_jobportal_user_has_profile_resume($USER->id);
+    $acceptsapplications = local_jobportal_job_accepts_applications($job);
     if ($hasapplied) {
         echo html_writer::tag('div', get_string('alreadyapplied', 'local_jobportal'), 
             array('class' => 'alert alert-info'));
@@ -204,9 +367,20 @@ if (has_capability('local/jobportal:apply', $context)) {
             get_string('resumeuploadrequired', 'local_jobportal', $resumelink),
             array('class' => 'alert alert-warning')
         );
-    } else if (!empty($job->deadline) && $job->deadline < time()) {
-        echo html_writer::tag('div', get_string('error:deadlinepassed', 'local_jobportal'), 
-            array('class' => 'alert alert-warning'));
+    } else if (!$acceptsapplications) {
+        if ($drivestate !== 'applicationsopen') {
+            echo html_writer::tag(
+                'div',
+                get_string('jobdrivenotacceptingapplications', 'local_jobportal', $drivestatelabel),
+                array('class' => 'alert alert-warning')
+            );
+        } else if (!empty($job->deadline) && $job->deadline < time()) {
+            echo html_writer::tag('div', get_string('error:deadlinepassed', 'local_jobportal'),
+                array('class' => 'alert alert-warning'));
+        } else {
+            echo html_writer::tag('div', get_string('jobnotacceptingapplications', 'local_jobportal'),
+                array('class' => 'alert alert-warning'));
+        }
     } else {
         echo html_writer::link(
             new moodle_url('/local/jobportal/apply.php', array('jobid' => $job->id)),

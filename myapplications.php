@@ -32,7 +32,7 @@ echo local_jobportal_render_navigation($context, 'myapplications');
 
 // Get user's applications
 $totalapplications = (int)$DB->count_records('local_jobportal_applications', array('userid' => $USER->id));
-$sql = "SELECT a.*, j.title, j.company, j.location, j.jobtype, j.timecreated AS joblistedon
+$sql = "SELECT a.*, j.title, j.company, j.location, j.timecreated AS joblistedon
         FROM {local_jobportal_applications} a
         JOIN {local_jobportal_jobs} j ON a.jobid = j.id
         WHERE a.userid = :userid
@@ -147,11 +147,6 @@ if (empty($applications)) {
         echo html_writer::start_div('jp-myapp-meta-item');
         echo html_writer::div(get_string('joblistedon', 'local_jobportal'), 'jp-myapp-meta-label');
         echo html_writer::div(userdate($app->joblistedon, $dateformat), 'jp-myapp-meta-value');
-        echo html_writer::end_div();
-
-        echo html_writer::start_div('jp-myapp-meta-item');
-        echo html_writer::div(get_string('jobtype', 'local_jobportal'), 'jp-myapp-meta-label');
-        echo html_writer::div(local_jobportal_format_jobtype($app->jobtype), 'jp-myapp-meta-value');
         echo html_writer::end_div();
 
         if (!empty($app->location)) {

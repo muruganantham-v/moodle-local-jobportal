@@ -100,6 +100,191 @@ function local_jobportal_get_company_stats($companyid) {
 }
 
 /**
+ * Job drive state options.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_drive_state_options() {
+    return array(
+        'applicationsopen' => get_string('drivestate_applicationsopen', 'local_jobportal'),
+        'applicationsclosed' => get_string('drivestate_applicationsclosed', 'local_jobportal'),
+        'selectioninprogress' => get_string('drivestate_selectioninprogress', 'local_jobportal'),
+        'completed' => get_string('drivestate_completed', 'local_jobportal'),
+        'archived' => get_string('drivestate_archived', 'local_jobportal'),
+        'onhold' => get_string('drivestate_onhold', 'local_jobportal'),
+        'cancelled' => get_string('drivestate_cancelled', 'local_jobportal'),
+    );
+}
+
+/**
+ * Job drive completion outcomes.
+ *
+ * @return array<string,string>
+ */
+function local_jobportal_get_drive_outcome_options() {
+    return array(
+        'offersmade' => get_string('driveoutcome_offersmade', 'local_jobportal'),
+        'noselection' => get_string('driveoutcome_noselection', 'local_jobportal'),
+    );
+}
+
+/**
+ * Normalize a drive state to supported values.
+ *
+ * @param string $state
+ * @return string
+ */
+function local_jobportal_normalize_drive_state($state) {
+    $normalized = core_text::strtolower(trim((string)$state));
+    $allowed = array_keys(local_jobportal_get_drive_state_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return 'applicationsopen';
+    }
+    return $normalized;
+}
+
+/**
+ * Normalize a drive outcome to supported values.
+ *
+ * @param string $outcome
+ * @return string
+ */
+function local_jobportal_normalize_drive_outcome($outcome) {
+    $normalized = core_text::strtolower(trim((string)$outcome));
+    $allowed = array_keys(local_jobportal_get_drive_outcome_options());
+    if (!in_array($normalized, $allowed, true)) {
+        return '';
+    }
+    return $normalized;
+}
+
+/**
+ * Resolve effective drive state for a job record.
+ *
+ * @param stdClass $job
+ * @return string
+ */
+function local_jobportal_get_job_drive_state($job) {
+    $hasstoredstate = property_exists($job, 'drivestate') && trim((string)$job->drivestate) !== '';
+    $storedstate = $hasstoredstate ? local_jobportal_normalize_drive_state($job->drivestate) : '';
+
+    if (property_exists($job, 'status') && (int)$job->status === 0) {
+        if (in_array($storedstate, array('completed', 'archived', 'cancelled'), true)) {
+            return $storedstate;
+        }
+        return 'archived';
+    }
+    if ($hasstoredstate) {
+        return $storedstate;
+    }
+    if (!empty($job->deadline) && (int)$job->deadline < time()) {
+        return 'applicationsclosed';
+    }
+    return 'applicationsopen';
+}
+
+/**
+ * Resolve human-readable label for a drive state.
+ *
+ * @param string $state
+ * @return string
+ */
+function local_jobportal_get_job_drive_state_label($state) {
+    $state = local_jobportal_normalize_drive_state($state);
+    $options = local_jobportal_get_drive_state_options();
+    return isset($options[$state]) ? $options[$state] : $options['applicationsopen'];
+}
+
+/**
+ * Resolve human-readable label for a drive outcome.
+ *
+ * @param string $outcome
+ * @return string
+ */
+function local_jobportal_get_job_drive_outcome_label($outcome) {
+    $outcome = local_jobportal_normalize_drive_outcome($outcome);
+    $options = local_jobportal_get_drive_outcome_options();
+    if ($outcome === '' || !isset($options[$outcome])) {
+        return '-';
+    }
+    return $options[$outcome];
+}
+
+/**
+ * Resolve badge class for a drive state.
+ *
+ * @param string $state
+ * @return string
+ */
+function local_jobportal_get_job_drive_state_badge_class($state) {
+    $state = local_jobportal_normalize_drive_state($state);
+    switch ($state) {
+        case 'applicationsopen':
+            return 'badge badge-success';
+        case 'applicationsclosed':
+            return 'badge badge-secondary';
+        case 'selectioninprogress':
+            return 'badge badge-primary';
+        case 'completed':
+            return 'badge badge-info';
+        case 'archived':
+            return 'badge badge-dark';
+        case 'onhold':
+            return 'badge badge-warning';
+        case 'cancelled':
+            return 'badge badge-danger';
+        default:
+            return 'badge badge-secondary';
+    }
+}
+
+/**
+ * Validate drive-state transition.
+ *
+ * @param string $fromstate
+ * @param string $tostate
+ * @return bool
+ */
+function local_jobportal_is_drive_transition_allowed($fromstate, $tostate) {
+    $fromstate = local_jobportal_normalize_drive_state($fromstate);
+    $tostate = local_jobportal_normalize_drive_state($tostate);
+    if ($fromstate === $tostate) {
+        return true;
+    }
+
+    $matrix = array(
+        'applicationsopen' => array('applicationsclosed', 'onhold', 'cancelled'),
+        'applicationsclosed' => array('applicationsopen', 'selectioninprogress', 'onhold', 'cancelled'),
+        'selectioninprogress' => array('applicationsclosed', 'completed', 'onhold', 'cancelled'),
+        'completed' => array('selectioninprogress', 'archived', 'onhold'),
+        'archived' => array('completed'),
+        'onhold' => array('applicationsopen', 'applicationsclosed', 'selectioninprogress', 'cancelled'),
+        'cancelled' => array('onhold'),
+    );
+
+    return isset($matrix[$fromstate]) && in_array($tostate, $matrix[$fromstate], true);
+}
+
+/**
+ * Whether the job currently accepts fresh applications.
+ *
+ * @param stdClass $job
+ * @return bool
+ */
+function local_jobportal_job_accepts_applications($job) {
+    if (property_exists($job, 'status') && (int)$job->status !== 1) {
+        return false;
+    }
+    if (local_jobportal_get_job_drive_state($job) !== 'applicationsopen') {
+        return false;
+    }
+    if (!empty($job->deadline) && (int)$job->deadline < time()) {
+        return false;
+    }
+    return true;
+}
+
+/**
  * Get URL for an uploaded company logo.
  *
  * @param int $companyid
@@ -413,12 +598,15 @@ function local_jobportal_build_salary_display($salarymodel, $currency, $period, 
  *
  * @param stdClass $job
  * @param array<int,stdClass>|null $stages
+ * @param bool $compactprogressive
  * @return string
  */
-function local_jobportal_get_job_salary_display($job, $stages = null) {
+function local_jobportal_get_job_salary_display($job, $stages = null, $compactprogressive = false) {
     $salarymodel = !empty($job->salarymodel) ? core_text::strtolower((string)$job->salarymodel) : 'custom';
+    $compactprogressive = (bool)$compactprogressive;
+    $isprogressive = ($salarymodel === 'progressive');
 
-    if (!empty($job->salary)) {
+    if (!empty($job->salary) && !($compactprogressive && $isprogressive)) {
         return trim((string)$job->salary);
     }
 
@@ -426,12 +614,71 @@ function local_jobportal_get_job_salary_display($job, $stages = null) {
         return get_string('salaryundisclosed', 'local_jobportal');
     }
 
-    if ($stages === null && !empty($job->id) && !empty($job->salarymodel) &&
-            core_text::strtolower((string)$job->salarymodel) === 'progressive') {
+    if ($stages === null && !empty($job->id) && $isprogressive) {
         $stages = local_jobportal_get_job_salary_stages((int)$job->id);
     }
     if ($stages === null) {
         $stages = array();
+    }
+
+    if ($compactprogressive && $isprogressive) {
+        $currency = !empty($job->salarycurrency) ? $job->salarycurrency : 'INR';
+        $annualperiodlabel = get_string('salaryperiod_annual', 'local_jobportal');
+        $annualmin = (isset($job->salaryminannual) && is_numeric($job->salaryminannual)) ? (float)$job->salaryminannual : null;
+        $annualmax = (isset($job->salarymaxannual) && is_numeric($job->salarymaxannual)) ? (float)$job->salarymaxannual : null;
+
+        if (($annualmin === null || $annualmax === null) && !empty($stages)) {
+            $annuals = array();
+            foreach ($stages as $stage) {
+                if (is_object($stage)) {
+                    $amount = $stage->amount ?? null;
+                    $period = $stage->period ?? 'annual';
+                } else if (is_array($stage)) {
+                    $amount = $stage['amount'] ?? null;
+                    $period = $stage['period'] ?? 'annual';
+                } else {
+                    continue;
+                }
+                $annual = local_jobportal_normalize_salary_to_annual($amount, $period);
+                if ($annual !== null) {
+                    $annuals[] = $annual;
+                }
+            }
+            if (!empty($annuals)) {
+                if ($annualmin === null) {
+                    $annualmin = min($annuals);
+                }
+                if ($annualmax === null) {
+                    $annualmax = max($annuals);
+                }
+            }
+        }
+
+        if ($annualmin !== null && $annualmax !== null && $annualmin > $annualmax) {
+            $tmp = $annualmin;
+            $annualmin = $annualmax;
+            $annualmax = $tmp;
+        }
+
+        $summary = '';
+        if ($annualmin !== null && $annualmax !== null) {
+            if (abs($annualmin - $annualmax) < 0.00001) {
+                $summary = local_jobportal_format_salary_amount($annualmin, $currency);
+            } else {
+                $summary = local_jobportal_format_salary_amount($annualmin, $currency) . ' - ' .
+                    local_jobportal_format_salary_amount($annualmax, $currency);
+            }
+        } else if ($annualmin !== null) {
+            $summary = local_jobportal_format_salary_amount($annualmin, $currency);
+        } else if ($annualmax !== null) {
+            $summary = local_jobportal_format_salary_amount($annualmax, $currency);
+        }
+
+        if ($summary !== '') {
+            return $summary . ' / ' . $annualperiodlabel . ' (' .
+                get_string('salarymodel_progressive', 'local_jobportal') . ')';
+        }
+        return get_string('salaryprogressivegeneric', 'local_jobportal');
     }
 
     return local_jobportal_build_salary_display(

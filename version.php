@@ -9,7 +9,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_jobportal';
-$plugin->version = 2026020602; // YYYYMMDDXX format
+$plugin->version = 2026020603; // YYYYMMDDXX format
 $plugin->requires = 2022112800; // Moodle 4.1 or higher
 $plugin->maturity = MATURITY_STABLE;
-$plugin->release = 'v1.8.2';
+$plugin->release = 'v1.8.3';
