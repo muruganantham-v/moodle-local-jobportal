@@ -745,6 +745,51 @@ function local_jobportal_resume_status_badge_class($status) {
 }
 
 /**
+ * Resolve shortlist decision badge class.
+ *
+ * @param string $shortliststatus
+ * @return string
+ */
+function local_jobportal_shortlist_badge_class($shortliststatus) {
+    switch (local_jobportal_normalize_shortlist_status($shortliststatus)) {
+        case 'internalshortlisted':
+            return 'badge badge-info';
+        case 'shortlisted':
+            return 'badge badge-success';
+        case 'notshortlisted':
+            return 'badge badge-danger';
+        case 'pending':
+            return 'badge badge-warning';
+        default:
+            return 'badge badge-secondary';
+    }
+}
+
+/**
+ * Resolve post-shortlisting stage badge class.
+ *
+ * @param string $shortname
+ * @return string
+ */
+function local_jobportal_post_stage_badge_class($shortname) {
+    $shortname = core_text::strtolower(trim((string)$shortname));
+    switch ($shortname) {
+        case 'accepted':
+            return 'badge badge-success';
+        case 'rejected':
+            return 'badge badge-danger';
+        case 'offermade':
+            return 'badge badge-primary';
+        case 'pending':
+            return 'badge badge-warning';
+        case '':
+            return 'badge badge-secondary';
+        default:
+            return 'badge badge-info';
+    }
+}
+
+/**
  * Build a deterministic signature of files in a profile resume area.
  *
  * @param int $profileid
@@ -893,6 +938,179 @@ function local_jobportal_user_has_profile_resume($userid) {
     }
 
     return local_jobportal_get_profile_resume_url((int)$profile->id) !== null;
+}
+
+/**
+ * Resolve student job access policy from plugin settings.
+ *
+ * @return stdClass
+ */
+function local_jobportal_get_student_job_access_policy() {
+    $config = get_config('local_jobportal');
+
+    $feedmode = isset($config->studentpolicy_feedmode) ? core_text::strtolower(trim((string)$config->studentpolicy_feedmode)) : 'openjobs';
+    if (!in_array($feedmode, array('openjobs', 'alljobs'), true)) {
+        $feedmode = 'openjobs';
+    }
+
+    $maxactive = isset($config->studentpolicy_maxactiveapplications) ? (int)$config->studentpolicy_maxactiveapplications : 0;
+    if ($maxactive < 0) {
+        $maxactive = 0;
+    }
+
+    $weeklylimit = isset($config->studentpolicy_weeklyapplicationlimit) ? (int)$config->studentpolicy_weeklyapplicationlimit : 0;
+    if ($weeklylimit < 0) {
+        $weeklylimit = 0;
+    }
+
+    $cooldownenabled = !empty($config->studentpolicy_notshortlistedcooldownenabled);
+    $cooldowntriggercount = isset($config->studentpolicy_notshortlistedtriggercount) ? (int)$config->studentpolicy_notshortlistedtriggercount : 3;
+    if ($cooldowntriggercount < 1) {
+        $cooldowntriggercount = 1;
+    }
+    $cooldowndays = isset($config->studentpolicy_notshortlistedcooldowndays) ? (int)$config->studentpolicy_notshortlistedcooldowndays : 14;
+    if ($cooldowndays < 1) {
+        $cooldowndays = 1;
+    } else if ($cooldowndays > 365) {
+        $cooldowndays = 365;
+    }
+
+    if (isset($config->studentpolicy_blocknoshow)) {
+        $blocknoshow = !empty($config->studentpolicy_blocknoshow);
+    } else if (isset($config->studentpolicy_blockinterviewnoshow)) {
+        // Backward-compatibility with older config key before 2026020607.
+        $blocknoshow = !empty($config->studentpolicy_blockinterviewnoshow);
+    } else {
+        $blocknoshow = true;
+    }
+
+    return (object)array(
+        'feedmode' => $feedmode,
+        'requireresumeapproved' => !empty($config->studentpolicy_requireresumeapproved),
+        'blocknoshow' => $blocknoshow,
+        'maxactiveapplications' => $maxactive,
+        'weeklyapplicationlimit' => $weeklylimit,
+        'notshortlistedcooldownenabled' => $cooldownenabled,
+        'notshortlistedtriggercount' => $cooldowntriggercount,
+        'notshortlistedcooldowndays' => $cooldowndays,
+    );
+}
+
+/**
+ * Get normalized resume status for a user.
+ *
+ * @param int $userid
+ * @return string
+ */
+function local_jobportal_get_user_resume_status($userid) {
+    global $DB;
+
+    $profile = $DB->get_record('local_jobportal_profiles', array('userid' => (int)$userid), 'resumestatus');
+    if (!$profile) {
+        return 'notsubmitted';
+    }
+    return local_jobportal_normalize_resume_status($profile->resumestatus);
+}
+
+/**
+ * Count active applications for a user.
+ *
+ * @param int $userid
+ * @return int
+ */
+function local_jobportal_count_student_active_applications($userid) {
+    global $DB;
+
+    $sql = "userid = :userid
+            AND shortliststatus <> :notshortlisted
+            AND status <> :accepted
+            AND status <> :rejected";
+    $params = array(
+        'userid' => (int)$userid,
+        'notshortlisted' => 'notshortlisted',
+        'accepted' => 'accepted',
+        'rejected' => 'rejected',
+    );
+    return (int)$DB->count_records_select('local_jobportal_applications', $sql, $params);
+}
+
+/**
+ * Evaluate student apply blockers from job access policy.
+ *
+ * @param int $userid
+ * @param stdClass|null $policy
+ * @return array<string,mixed>
+ */
+function local_jobportal_get_student_apply_policy_blockers($userid, $policy = null) {
+    global $DB;
+
+    if ($policy === null) {
+        $policy = local_jobportal_get_student_job_access_policy();
+    }
+
+    $userid = (int)$userid;
+    $now = time();
+    $blockers = array();
+
+    if (!empty($policy->requireresumeapproved)) {
+        $resumestatus = local_jobportal_get_user_resume_status($userid);
+        $hasresume = local_jobportal_user_has_profile_resume($userid);
+        if ($resumestatus !== 'approved' || !$hasresume) {
+            $statusoptions = local_jobportal_get_resume_status_options();
+            $statuslabel = isset($statusoptions[$resumestatus]) ? $statusoptions[$resumestatus] : $resumestatus;
+            $blockers['resumeapproved'] = array(
+                'status' => $resumestatus,
+                'statuslabel' => $statuslabel,
+            );
+        }
+    }
+
+    if (!empty($policy->maxactiveapplications)) {
+        $activecount = local_jobportal_count_student_active_applications($userid);
+        if ($activecount >= (int)$policy->maxactiveapplications) {
+            $blockers['maxactive'] = array(
+                'current' => $activecount,
+                'limit' => (int)$policy->maxactiveapplications,
+            );
+        }
+    }
+
+    if (!empty($policy->weeklyapplicationlimit)) {
+        $weekstart = $now - (7 * DAYSECS);
+        $weeklycount = (int)$DB->count_records_select(
+            'local_jobportal_applications',
+            'userid = :userid AND timecreated >= :weekstart',
+            array('userid' => $userid, 'weekstart' => $weekstart)
+        );
+        if ($weeklycount >= (int)$policy->weeklyapplicationlimit) {
+            $blockers['weeklylimit'] = array(
+                'current' => $weeklycount,
+                'limit' => (int)$policy->weeklyapplicationlimit,
+            );
+        }
+    }
+
+    if (!empty($policy->notshortlistedcooldownenabled)) {
+        $cutoff = $now - (((int)$policy->notshortlistedcooldowndays) * DAYSECS);
+        $notshortlistedcount = (int)$DB->count_records_select(
+            'local_jobportal_applications',
+            'userid = :userid AND shortliststatus = :status AND timemodified >= :cutoff',
+            array(
+                'userid' => $userid,
+                'status' => 'notshortlisted',
+                'cutoff' => $cutoff,
+            )
+        );
+        if ($notshortlistedcount >= (int)$policy->notshortlistedtriggercount) {
+            $blockers['cooldown'] = array(
+                'current' => $notshortlistedcount,
+                'trigger' => (int)$policy->notshortlistedtriggercount,
+                'days' => (int)$policy->notshortlistedcooldowndays,
+            );
+        }
+    }
+
+    return $blockers;
 }
 
 /**
@@ -1374,7 +1592,6 @@ function local_jobportal_default_stage_definitions() {
         array('shortname' => 'shortlisted', 'displayname' => get_string('shortlisted', 'local_jobportal'), 'sortorder' => 25, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'notshortlisted', 'displayname' => get_string('notshortlisted', 'local_jobportal'), 'sortorder' => 26, 'isterminal' => 1, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'testscheduled', 'displayname' => get_string('testscheduled', 'local_jobportal'), 'sortorder' => 30, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 1),
-        array('shortname' => 'testdone', 'displayname' => get_string('testdone', 'local_jobportal'), 'sortorder' => 40, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'interviewscheduled', 'displayname' => get_string('interviewscheduled', 'local_jobportal'), 'sortorder' => 50, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 1),
         array('shortname' => 'offermade', 'displayname' => get_string('offermade', 'local_jobportal'), 'sortorder' => 70, 'isterminal' => 0, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'accepted', 'displayname' => get_string('accepted', 'local_jobportal'), 'sortorder' => 80, 'isterminal' => 1, 'isactive' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
@@ -1503,6 +1720,7 @@ function local_jobportal_get_schedule_status_options() {
         'completed' => get_string('schedulestatus_completed', 'local_jobportal'),
         'cancelled' => get_string('schedulestatus_cancelled', 'local_jobportal'),
         'noshow' => get_string('schedulestatus_noshow', 'local_jobportal'),
+        'excused' => get_string('schedulestatus_excused', 'local_jobportal'),
     );
 }
 
@@ -1634,8 +1852,8 @@ function local_jobportal_get_application_shortlist_status($application) {
     if ($status === 'notshortlisted') {
         return 'notshortlisted';
     }
-    // Legacy status kept for older records after Interview Done was removed from flow.
-    if ($status === 'interviewdone') {
+    // Legacy statuses kept for older records after Done stages were removed from flow.
+    if ($status === 'testdone' || $status === 'interviewdone') {
         return 'shortlisted';
     }
 
@@ -1669,7 +1887,6 @@ function local_jobportal_get_applicant_visible_shortlist_status($application) {
 function local_jobportal_get_post_shortlist_stage_shortnames() {
     return array(
         'testscheduled',
-        'testdone',
         'interviewscheduled',
         'offermade',
         'accepted',
@@ -1843,6 +2060,517 @@ function local_jobportal_get_applicant_visible_stage($application, $events = arr
 }
 
 /**
+ * Application statuses that lock new applications for a student.
+ *
+ * @return array<int,string>
+ */
+function local_jobportal_get_apply_lock_trigger_statuses() {
+    return array('offermade', 'accepted', 'rejected');
+}
+
+/**
+ * Get localized stage label used in apply-lock messaging.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_get_apply_lock_stage_label($status) {
+    $status = core_text::strtolower(trim((string)$status));
+    $labels = array(
+        'offermade' => get_string('offermade', 'local_jobportal'),
+        'accepted' => get_string('accepted', 'local_jobportal'),
+        'rejected' => get_string('rejected', 'local_jobportal'),
+    );
+    if (isset($labels[$status])) {
+        return $labels[$status];
+    }
+    if ($status === '') {
+        return '-';
+    }
+    return $status;
+}
+
+/**
+ * Get apply override record for a student.
+ *
+ * @param int $userid
+ * @return stdClass|false
+ */
+function local_jobportal_get_student_apply_override($userid) {
+    global $DB;
+
+    try {
+        return $DB->get_record('local_jobportal_apply_overrides', array('userid' => (int)$userid), '*', IGNORE_MISSING);
+    } catch (dml_exception $e) {
+        return false;
+    }
+}
+
+/**
+ * Whether an apply override is currently active.
+ *
+ * @param stdClass|false $override
+ * @param int|null $now
+ * @return bool
+ */
+function local_jobportal_is_student_apply_override_active($override, $now = null) {
+    if (empty($override) || empty($override->isenabled)) {
+        return false;
+    }
+
+    if ($now === null) {
+        $now = time();
+    }
+
+    if (!empty($override->expiresat) && (int)$override->expiresat < (int)$now) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Whether a manager manual apply block is currently active.
+ *
+ * @param stdClass|false $override
+ * @param int|null $now
+ * @return bool
+ */
+function local_jobportal_is_student_apply_manual_block_active($override, $now = null) {
+    if (empty($override) || empty($override->isblocked)) {
+        return false;
+    }
+
+    if ($now === null) {
+        $now = time();
+    }
+
+    if (!empty($override->blockexpiresat) && (int)$override->blockexpiresat < (int)$now) {
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Create or update apply override for a student.
+ *
+ * @param int $userid
+ * @param int|bool $enabled
+ * @param string|null $reason
+ * @param int|null $expiresat
+ * @param int $setby
+ * @param int|bool|null $blockenabled
+ * @param string|null $blockreason
+ * @param int|null $blockexpiresat
+ * @return stdClass|false
+ */
+function local_jobportal_save_student_apply_override(
+    $userid,
+    $enabled,
+    $reason,
+    $expiresat,
+    $setby,
+    $blockenabled = null,
+    $blockreason = null,
+    $blockexpiresat = null
+) {
+    global $DB;
+
+    $userid = (int)$userid;
+    $enabled = !empty($enabled) ? 1 : 0;
+    $setby = (int)$setby;
+    $now = time();
+
+    $reason = trim((string)$reason);
+    if ($reason === '' || !$enabled) {
+        $reason = null;
+    }
+
+    if (!$enabled) {
+        $expiresat = null;
+    } else if ($expiresat !== null && $expiresat !== '') {
+        $expiresat = (int)$expiresat;
+        if ($expiresat <= 0) {
+            $expiresat = null;
+        }
+    } else {
+        $expiresat = null;
+    }
+
+    $existing = local_jobportal_get_student_apply_override($userid);
+
+    if ($blockenabled === null) {
+        $blockenabled = ($existing && !empty($existing->isblocked)) ? 1 : 0;
+        $blockreason = ($existing && isset($existing->blockreason) && $existing->blockreason !== '') ? (string)$existing->blockreason : null;
+        $blockexpiresat = ($existing && !empty($existing->blockexpiresat)) ? (int)$existing->blockexpiresat : null;
+    } else {
+        $blockenabled = !empty($blockenabled) ? 1 : 0;
+        $blockreason = trim((string)$blockreason);
+        if ($blockreason === '' || !$blockenabled) {
+            $blockreason = null;
+        }
+
+        if (!$blockenabled) {
+            $blockexpiresat = null;
+        } else if ($blockexpiresat !== null && $blockexpiresat !== '') {
+            $blockexpiresat = (int)$blockexpiresat;
+            if ($blockexpiresat <= 0) {
+                $blockexpiresat = null;
+            }
+        } else {
+            $blockexpiresat = null;
+        }
+    }
+
+    if ($existing) {
+        $update = new stdClass();
+        $update->id = (int)$existing->id;
+        $update->isenabled = $enabled;
+        $update->reason = $reason;
+        $update->expiresat = $expiresat;
+        $update->isblocked = $blockenabled;
+        $update->blockreason = $blockreason;
+        $update->blockexpiresat = $blockexpiresat;
+        $update->setby = $setby;
+        $update->timemodified = $now;
+        $DB->update_record('local_jobportal_apply_overrides', $update);
+    } else {
+        $record = new stdClass();
+        $record->userid = $userid;
+        $record->isenabled = $enabled;
+        $record->reason = $reason;
+        $record->expiresat = $expiresat;
+        $record->isblocked = $blockenabled;
+        $record->blockreason = $blockreason;
+        $record->blockexpiresat = $blockexpiresat;
+        $record->setby = $setby;
+        $record->timecreated = $now;
+        $record->timemodified = $now;
+        $DB->insert_record('local_jobportal_apply_overrides', $record);
+    }
+
+    return local_jobportal_get_student_apply_override($userid);
+}
+
+/**
+ * Resolve whether a student is locked from applying to new jobs.
+ *
+ * @param int $userid
+ * @return stdClass
+ */
+function local_jobportal_get_student_apply_lock_info($userid) {
+    global $DB;
+
+    $userid = (int)$userid;
+    $now = time();
+
+    $info = (object)array(
+        'userid' => $userid,
+        'locked' => false,
+        'lockreason' => '',
+        'triggerapplicationid' => 0,
+        'triggerjobid' => 0,
+        'triggerstatus' => '',
+        'triggerstatuslabel' => '',
+        'triggereventid' => 0,
+        'overrideexists' => false,
+        'overrideenabled' => false,
+        'overrideactive' => false,
+        'overrideexpiresat' => null,
+        'overridereason' => '',
+        'manualblockenabled' => false,
+        'manualblockactive' => false,
+        'manualblockexpiresat' => null,
+        'manualblockreason' => '',
+    );
+
+    $override = local_jobportal_get_student_apply_override($userid);
+    if ($override) {
+        $info->overrideexists = true;
+        $info->overrideenabled = !empty($override->isenabled);
+        $info->overrideactive = local_jobportal_is_student_apply_override_active($override, $now);
+        $info->overrideexpiresat = !empty($override->expiresat) ? (int)$override->expiresat : null;
+        $info->overridereason = !empty($override->reason) ? (string)$override->reason : '';
+        $info->manualblockenabled = !empty($override->isblocked);
+        $info->manualblockactive = local_jobportal_is_student_apply_manual_block_active($override, $now);
+        $info->manualblockexpiresat = !empty($override->blockexpiresat) ? (int)$override->blockexpiresat : null;
+        $info->manualblockreason = !empty($override->blockreason) ? (string)$override->blockreason : '';
+    }
+
+    if ($info->manualblockactive) {
+        $info->locked = true;
+        $info->lockreason = 'manualblock';
+        return $info;
+    }
+
+    try {
+        $triggerstatuses = local_jobportal_get_apply_lock_trigger_statuses();
+        if (!empty($triggerstatuses)) {
+            list($statussql, $statusparams) = $DB->get_in_or_equal($triggerstatuses, SQL_PARAMS_NAMED, 'lockstatus');
+            $sqlparams = array_merge(
+                array(
+                    'userid' => $userid,
+                ),
+                $statusparams
+            );
+            $triggerrecord = $DB->get_record_sql(
+                "SELECT id, jobid, status
+                   FROM {local_jobportal_applications}
+                  WHERE userid = :userid
+                    AND status $statussql
+               ORDER BY timemodified DESC, timecreated DESC, id DESC",
+                $sqlparams,
+                IGNORE_MISSING
+            );
+
+            if ($triggerrecord) {
+                $info->triggerapplicationid = (int)$triggerrecord->id;
+                $info->triggerjobid = (int)$triggerrecord->jobid;
+                $info->triggerstatus = core_text::strtolower(trim((string)$triggerrecord->status));
+                $info->triggerstatuslabel = local_jobportal_get_apply_lock_stage_label($info->triggerstatus);
+            }
+        }
+    } catch (dml_exception $e) {
+        return $info;
+    }
+
+    if (!empty($info->triggerapplicationid) && !$info->overrideactive) {
+        $info->locked = true;
+        $info->lockreason = 'offerstage';
+        return $info;
+    }
+
+    if (!$info->overrideactive) {
+        $policy = local_jobportal_get_student_job_access_policy();
+        if (!empty($policy->blocknoshow)) {
+            try {
+                $noshowrecord = $DB->get_record_sql(
+                    "SELECT e.id, e.applicationid, a.jobid
+                       FROM {local_jobportal_appstage_events} e
+                       JOIN {local_jobportal_applications} a ON a.id = e.applicationid
+                       JOIN {local_jobportal_stages} s ON s.id = e.stageid
+                      WHERE a.userid = :userid
+                        AND s.hasscheduledate = :hasscheduledate
+                        AND e.schedulestatus = :noshow
+                   ORDER BY e.timecreated DESC, e.id DESC",
+                    array(
+                        'userid' => $userid,
+                        'hasscheduledate' => 1,
+                        'noshow' => 'noshow',
+                    ),
+                    IGNORE_MISSING
+                );
+                if ($noshowrecord) {
+                    $info->triggereventid = (int)$noshowrecord->id;
+                    $info->triggerapplicationid = (int)$noshowrecord->applicationid;
+                    $info->triggerjobid = (int)$noshowrecord->jobid;
+                    $info->triggerstatus = 'noshow';
+                    $info->triggerstatuslabel = get_string('schedulestatus_noshow', 'local_jobportal');
+                    $info->locked = true;
+                    $info->lockreason = 'noshow';
+                }
+            } catch (dml_exception $e) {
+                // Ignore lock lookup failures and leave eligibility as-is.
+            }
+        }
+    }
+
+    return $info;
+}
+
+/**
+ * Build apply-lock message text for student-facing screens.
+ *
+ * @param stdClass $applylockinfo
+ * @param bool $iserror
+ * @return string
+ */
+function local_jobportal_get_student_apply_lock_message($applylockinfo, $iserror = false) {
+    if (empty($applylockinfo) || empty($applylockinfo->locked)) {
+        return '';
+    }
+
+    $reason = !empty($applylockinfo->lockreason) ? (string)$applylockinfo->lockreason : 'offerstage';
+    if ($reason === 'manualblock') {
+        return get_string($iserror ? 'error:applylockedmanualblock' : 'applylockednotice_manualblock', 'local_jobportal');
+    }
+
+    if ($reason === 'noshow') {
+        $a = (object)array(
+            'jobid' => !empty($applylockinfo->triggerjobid) ? (int)$applylockinfo->triggerjobid : '-',
+        );
+        return get_string($iserror ? 'error:applylockednoshow' : 'applylockednotice_noshow', 'local_jobportal', $a);
+    }
+
+    $a = (object)array(
+        'stage' => !empty($applylockinfo->triggerstatuslabel) ? $applylockinfo->triggerstatuslabel : '-',
+        'jobid' => !empty($applylockinfo->triggerjobid) ? (int)$applylockinfo->triggerjobid : '-',
+    );
+    return get_string($iserror ? 'error:applylockedoffer' : 'applylockednotice', 'local_jobportal', $a);
+}
+
+/**
+ * Whether a stage shortname is an offer-stage status.
+ *
+ * @param string $shortname
+ * @return bool
+ */
+function local_jobportal_is_offer_stage_shortname($shortname) {
+    $shortname = core_text::strtolower(trim((string)$shortname));
+    return in_array($shortname, local_jobportal_get_apply_lock_trigger_statuses(), true);
+}
+
+/**
+ * Resolve a student's current highlighted offer status.
+ *
+ * Prioritizes Accepted, then Offer Made, then Offer Rejected.
+ *
+ * @param int $userid
+ * @return stdClass
+ */
+function local_jobportal_get_student_offer_highlight($userid) {
+    global $DB;
+
+    $userid = (int)$userid;
+    $info = (object)array(
+        'hasoffer' => false,
+        'status' => '',
+        'statuslabel' => '',
+        'jobid' => 0,
+        'jobtitle' => '',
+        'company' => '',
+        'offerdate' => 0,
+        'timemodified' => 0,
+    );
+
+    try {
+        $statuses = local_jobportal_get_apply_lock_trigger_statuses();
+        list($statussql, $statusparams) = $DB->get_in_or_equal($statuses, SQL_PARAMS_NAMED, 'offstat');
+        $sql = "SELECT a.id, a.jobid, a.status, a.offermadeat, a.timemodified,
+                       j.title AS jobtitle, j.company, c.name AS companyname
+                  FROM {local_jobportal_applications} a
+                  JOIN {local_jobportal_jobs} j ON j.id = a.jobid
+             LEFT JOIN {local_jobportal_companies} c ON c.id = j.companyid
+                 WHERE a.userid = :userid
+                   AND a.status $statussql
+              ORDER BY CASE a.status
+                           WHEN 'accepted' THEN 1
+                           WHEN 'offermade' THEN 2
+                           WHEN 'rejected' THEN 3
+                           ELSE 9
+                       END ASC,
+                       a.timemodified DESC,
+                       a.id DESC";
+        $params = array_merge(array('userid' => $userid), $statusparams);
+        $record = $DB->get_record_sql($sql, $params, IGNORE_MISSING);
+        if (!$record) {
+            return $info;
+        }
+
+        $status = core_text::strtolower(trim((string)$record->status));
+        $company = !empty($record->companyname) ? $record->companyname : $record->company;
+        $info->hasoffer = true;
+        $info->status = $status;
+        $info->statuslabel = local_jobportal_get_apply_lock_stage_label($status);
+        $info->jobid = (int)$record->jobid;
+        $info->jobtitle = (string)$record->jobtitle;
+        $info->company = (string)$company;
+        $info->offerdate = !empty($record->offermadeat) ? (int)$record->offermadeat : (!empty($record->timemodified) ? (int)$record->timemodified : 0);
+        $info->timemodified = !empty($record->timemodified) ? (int)$record->timemodified : 0;
+    } catch (dml_exception $e) {
+        return $info;
+    }
+
+    return $info;
+}
+
+/**
+ * Resolve student-facing emotional copy template for offer-stage statuses.
+ *
+ * @param string $status
+ * @return string
+ */
+function local_jobportal_get_offer_status_emotion_template($status) {
+    $pluginconfig = get_config('local_jobportal');
+    $status = core_text::strtolower(trim((string)$status));
+    $map = array(
+        'offermade' => array(
+            'setting' => 'offer_message_offermade',
+            'defaultstring' => 'offeremotion_offermade',
+        ),
+        'accepted' => array(
+            'setting' => 'offer_message_accepted',
+            'defaultstring' => 'offeremotion_accepted',
+        ),
+        'rejected' => array(
+            'setting' => 'offer_message_rejected',
+            'defaultstring' => 'offeremotion_rejected',
+        ),
+    );
+    if (!isset($map[$status])) {
+        return '';
+    }
+
+    $settingkey = $map[$status]['setting'];
+    if (isset($pluginconfig->$settingkey)) {
+        $custom = trim((string)$pluginconfig->$settingkey);
+        if ($custom !== '') {
+            return $custom;
+        }
+    }
+
+    return get_string($map[$status]['defaultstring'], 'local_jobportal');
+}
+
+/**
+ * Resolve student-facing emotional copy for offer-stage statuses as plain text.
+ *
+ * Supports placeholders: {jobtitle}, {company}.
+ *
+ * @param string $status
+ * @param string $jobtitle
+ * @param string $company
+ * @return string
+ */
+function local_jobportal_get_offer_status_emotion($status, $jobtitle = '', $company = '') {
+    $template = local_jobportal_get_offer_status_emotion_template($status);
+    if ($template === '') {
+        return '';
+    }
+
+    return str_replace(
+        array('{jobtitle}', '{company}'),
+        array(trim((string)$jobtitle), trim((string)$company)),
+        $template
+    );
+}
+
+/**
+ * Resolve student-facing emotional copy for offer-stage statuses as safe HTML.
+ *
+ * Supports placeholders: {jobtitle}, {company}.
+ *
+ * @param string $status
+ * @param string $jobtitle
+ * @param string $company
+ * @return string
+ */
+function local_jobportal_get_offer_status_emotion_html($status, $jobtitle = '', $company = '') {
+    $template = local_jobportal_get_offer_status_emotion_template($status);
+    if ($template === '') {
+        return '';
+    }
+
+    $jobtitletoken = html_writer::span(s(trim((string)$jobtitle)), 'jp-offer-msg-token jp-offer-msg-token--jobtitle');
+    $companytoken = html_writer::span(s(trim((string)$company)), 'jp-offer-msg-token jp-offer-msg-token--company');
+
+    $safehtml = s($template);
+    $safehtml = str_replace(s('{jobtitle}'), $jobtitletoken, $safehtml);
+    $safehtml = str_replace(s('{company}'), $companytoken, $safehtml);
+
+    return $safehtml;
+}
+
+/**
  * Require plugin-wide stylesheet.
  *
  * @return void
@@ -1854,6 +2582,109 @@ function local_jobportal_require_styles() {
 }
 
 /**
+ * Build manager "All Jobs" URL using saved index preferences.
+ *
+ * @param int $userid
+ * @return moodle_url
+ */
+function local_jobportal_get_manager_index_url($userid) {
+    $userid = (int)$userid;
+    if ($userid <= 0) {
+        return new moodle_url('/local/jobportal/index.php');
+    }
+
+    $prefix = 'local_jobportal_index_';
+    $params = array();
+
+    $search = trim((string)get_user_preferences($prefix . 'search', '', $userid));
+    if ($search !== '') {
+        $params['search'] = $search;
+    }
+
+    $perpage = (int)get_user_preferences($prefix . 'perpage', 25, $userid);
+    if (in_array($perpage, array(25, 50, 100), true) && $perpage !== 25) {
+        $params['perpage'] = $perpage;
+    }
+
+    $companyid = (int)get_user_preferences($prefix . 'companyid', 0, $userid);
+    if ($companyid > 0) {
+        $params['companyid'] = $companyid;
+    }
+
+    $jobstatus = trim((string)get_user_preferences($prefix . 'jobstatus', 'all', $userid));
+    if ($jobstatus !== '' && $jobstatus !== 'all') {
+        $params['jobstatus'] = $jobstatus;
+    }
+
+    $jobtype = trim((string)get_user_preferences($prefix . 'jobtype', 'all', $userid));
+    if ($jobtype !== '' && $jobtype !== 'all') {
+        $params['jobtype'] = $jobtype;
+    }
+
+    $salarymode = trim((string)get_user_preferences($prefix . 'salarymode', 'all', $userid));
+    if ($salarymode !== '' && $salarymode !== 'all') {
+        $params['salarymode'] = $salarymode;
+    }
+
+    $salarymin = trim((string)get_user_preferences($prefix . 'salarymin', '', $userid));
+    if ($salarymin !== '') {
+        $params['salarymin'] = $salarymin;
+    }
+    $salarymax = trim((string)get_user_preferences($prefix . 'salarymax', '', $userid));
+    if ($salarymax !== '') {
+        $params['salarymax'] = $salarymax;
+    }
+
+    $hasapps = trim((string)get_user_preferences($prefix . 'hasapps', 'all', $userid));
+    if ($hasapps !== '' && $hasapps !== 'all') {
+        $params['hasapps'] = $hasapps;
+    }
+
+    $staledays = (int)get_user_preferences($prefix . 'staledays', 14, $userid);
+    if ($staledays > 0 && $staledays !== 14) {
+        $params['staledays'] = $staledays;
+    }
+
+    $listedfrom = trim((string)get_user_preferences($prefix . 'listedfrom', '', $userid));
+    if ($listedfrom !== '') {
+        $params['listedfrom'] = $listedfrom;
+    }
+    $listedto = trim((string)get_user_preferences($prefix . 'listedto', '', $userid));
+    if ($listedto !== '') {
+        $params['listedto'] = $listedto;
+    }
+    $deadlinefrom = trim((string)get_user_preferences($prefix . 'deadlinefrom', '', $userid));
+    if ($deadlinefrom !== '') {
+        $params['deadlinefrom'] = $deadlinefrom;
+    }
+    $deadlineto = trim((string)get_user_preferences($prefix . 'deadlineto', '', $userid));
+    if ($deadlineto !== '') {
+        $params['deadlineto'] = $deadlineto;
+    }
+
+    $sortby = trim((string)get_user_preferences($prefix . 'sortby', 'listed', $userid));
+    if ($sortby !== '' && $sortby !== 'listed') {
+        $params['sortby'] = $sortby;
+    }
+    $sortdir = core_text::strtolower(trim((string)get_user_preferences($prefix . 'sortdir', 'desc', $userid)));
+    if ($sortdir === 'asc') {
+        $params['sortdir'] = 'asc';
+    }
+
+    $preset = trim((string)get_user_preferences($prefix . 'preset', '', $userid));
+    if ($preset !== '') {
+        $params['preset'] = $preset;
+    }
+
+    $cols = trim((string)get_user_preferences($prefix . 'cols', '', $userid));
+    if ($cols !== '') {
+        $params['cols'] = $cols;
+    }
+
+    return new moodle_url('/local/jobportal/index.php', $params);
+}
+
+/**
  * Render a quick navigation bar for Job Portal pages.
  *
  * @param context $context
@@ -1862,6 +2693,8 @@ function local_jobportal_require_styles() {
  * @return string
  */
 function local_jobportal_render_navigation($context, $current = '', $extralinks = array()) {
+    global $USER;
+
     $ismanager = has_capability('local/jobportal:postjobs', $context) ||
         has_capability('local/jobportal:managejobs', $context) ||
         has_capability('local/jobportal:viewapplications', $context) ||
@@ -1871,11 +2704,16 @@ function local_jobportal_render_navigation($context, $current = '', $extralinks 
     $canreviewresumes = has_capability('local/jobportal:reviewresumes', $context);
     $canassignresumereviewers = has_capability('local/jobportal:assignresumereviewers', $context);
 
+    $indexurl = new moodle_url('/local/jobportal/index.php');
+    if ($ismanager && !empty($USER->id)) {
+        $indexurl = local_jobportal_get_manager_index_url((int)$USER->id);
+    }
+
     $links = array(
         array(
             'key' => 'index',
             'label' => get_string('alljobs', 'local_jobportal'),
-            'url' => new moodle_url('/local/jobportal/index.php'),
+            'url' => $indexurl,
         ),
     );
 
@@ -1942,6 +2780,11 @@ function local_jobportal_render_navigation($context, $current = '', $extralinks 
         );
     }
 
+    $studentofferhighlight = null;
+    if (has_capability('local/jobportal:apply', $context) && !$ismanager && $current !== 'myapplications' && !empty($USER->id)) {
+        $studentofferhighlight = local_jobportal_get_student_offer_highlight((int)$USER->id);
+    }
+
     foreach ($extralinks as $item) {
         if (empty($item['url']) || empty($item['label'])) {
             continue;
@@ -1949,18 +2792,53 @@ function local_jobportal_render_navigation($context, $current = '', $extralinks 
         $links[] = $item;
     }
 
-    $html = html_writer::start_tag('div', array('class' => 'card mb-3'));
+    $html = html_writer::start_tag('div', array('class' => 'card mb-3 jp-quick-nav jp-quick-nav--sticky'));
     $html .= html_writer::start_tag('div', array('class' => 'card-body py-2'));
-    $html .= html_writer::tag('strong', get_string('quicknavigation', 'local_jobportal') . ': ', array('class' => 'mr-2'));
+    $html .= html_writer::start_div('jp-quick-nav-links');
 
     foreach ($links as $link) {
         $iscurrent = !empty($link['key']) && $link['key'] === $current;
-        $class = $iscurrent ? 'btn btn-sm btn-primary mr-2 mb-1' : 'btn btn-sm btn-outline-primary mr-2 mb-1';
+        $class = $iscurrent ? 'btn btn-sm btn-primary' : 'btn btn-sm btn-outline-primary';
         $html .= html_writer::link($link['url'], $link['label'], array('class' => $class));
     }
 
+    $html .= html_writer::end_div();
     $html .= html_writer::end_tag('div');
     $html .= html_writer::end_tag('div');
+
+    if (!empty($studentofferhighlight->hasoffer)) {
+        $statusclass = preg_replace('/[^a-z0-9_-]/i', '', (string)$studentofferhighlight->status);
+        $toneclass = 'jp-offer-tone-' . $statusclass;
+        $emotionhtml = local_jobportal_get_offer_status_emotion_html(
+            $statusclass,
+            (string)$studentofferhighlight->jobtitle,
+            (string)$studentofferhighlight->company
+        );
+        $jobtitle = format_string($studentofferhighlight->jobtitle);
+        $company = format_string($studentofferhighlight->company);
+        $updated = !empty($studentofferhighlight->timemodified) ? userdate((int)$studentofferhighlight->timemodified, '%d/%m/%Y %H:%M') : '-';
+        $jobcompanytext = $jobtitle;
+        if (trim($company) !== '') {
+            $jobcompanytext .= ' | ' . $company;
+        }
+        $statusbadge = html_writer::tag('span', $studentofferhighlight->statuslabel, array(
+            'class' => 'jp-offer-status-inline jp-offer-status-inline--' . $statusclass,
+        ));
+
+        $html .= html_writer::start_div('card mb-3 jp-offer-global-banner ' . $toneclass);
+        $html .= html_writer::start_div('card-body py-2');
+        $html .= html_writer::start_div('jp-offer-banner-main');
+        $html .= html_writer::start_div('jp-offer-banner-left');
+        $html .= html_writer::div($jobcompanytext . ' ' . $statusbadge, 'jp-offer-banner-job');
+        if ($emotionhtml !== '') {
+            $html .= html_writer::div($emotionhtml, 'jp-offer-banner-emotion jp-offer-banner-emotion--' . $statusclass);
+        }
+        $html .= html_writer::div(get_string('offerhighlightupdated', 'local_jobportal', $updated), 'jp-offer-banner-meta');
+        $html .= html_writer::end_div();
+        $html .= html_writer::end_div();
+        $html .= html_writer::end_div();
+        $html .= html_writer::end_div();
+    }
 
     return $html;
 }

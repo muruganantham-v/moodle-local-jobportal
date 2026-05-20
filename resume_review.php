@@ -152,41 +152,7 @@ $history = $DB->get_records_sql($historysql, array('profileid' => (int)$profilei
 $navigationkey = $canassign ? 'resumequeue' : 'myresumereviews';
 
 if ($resumecanpreview && $resumepreviewurl) {
-    $PAGE->requires->js_init_code("
-        (function() {
-            var panel = document.getElementById('jp-resume-preview-panel');
-            var frame = document.getElementById('jp-resume-preview-frame');
-            var close = document.getElementById('jp-resume-preview-close');
-            var triggers = document.querySelectorAll('.jp-resume-preview-trigger');
-
-            triggers.forEach(function(trigger) {
-                trigger.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (!panel || !frame) {
-                        return;
-                    }
-                    var url = trigger.getAttribute('data-resume-url');
-                    if (!url) {
-                        return;
-                    }
-                    frame.setAttribute('src', url);
-                    panel.classList.remove('d-none');
-                    panel.scrollIntoView({behavior: 'smooth', block: 'start'});
-                });
-            });
-
-            if (close) {
-                close.addEventListener('click', function() {
-                    if (frame) {
-                        frame.setAttribute('src', 'about:blank');
-                    }
-                    if (panel) {
-                        panel.classList.add('d-none');
-                    }
-                });
-            }
-        })();
-    ");
+    $PAGE->requires->js_call_amd('local_jobportal/resume_preview', 'init');
 }
 
 echo $OUTPUT->header();
@@ -206,6 +172,11 @@ echo html_writer::start_div('card mb-3');
 echo html_writer::start_div('card-body');
 echo html_writer::tag('h4', fullname($student), array('class' => 'card-title mb-1'));
 echo html_writer::tag('p', s($student->email), array('class' => 'text-muted mb-2'));
+echo html_writer::link(
+    new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$student->id)),
+    get_string('viewstudentprofile', 'local_jobportal'),
+    array('class' => 'btn btn-outline-secondary btn-sm mb-2')
+);
 echo html_writer::tag('p', html_writer::tag('span', $summary->statuslabel, array('class' => $summary->statusbadge)), array('class' => 'mb-2'));
 if ($resumedownloadurl) {
     if ($resumecanpreview && $resumepreviewurl) {

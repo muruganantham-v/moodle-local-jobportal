@@ -1142,5 +1142,77 @@ function xmldb_local_jobportal_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2026020603, 'local', 'jobportal');
     }
 
+    if ($oldversion < 2026020604) {
+        $legacydone = array('testdone', 'interviewdone');
+        $now = time();
+        foreach ($legacydone as $shortname) {
+            $stage = $DB->get_record('local_jobportal_stages', array('shortname' => $shortname));
+            if ($stage && (int)$stage->isactive !== 0) {
+                $update = new stdClass();
+                $update->id = (int)$stage->id;
+                $update->isactive = 0;
+                $update->timemodified = $now;
+                $DB->update_record('local_jobportal_stages', $update);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026020604, 'local', 'jobportal');
+    }
+
+    if ($oldversion < 2026020605) {
+        $dbman = $DB->get_manager();
+
+        $table = new xmldb_table('local_jobportal_apply_overrides');
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('isenabled', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, 0);
+        $table->add_field('reason', XMLDB_TYPE_TEXT, null, null, null, null, null);
+        $table->add_field('expiresat', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('setby', XMLDB_TYPE_INTEGER, '10', null, null, null, null);
+        $table->add_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+        $table->add_key('applyovruseruniqfk', XMLDB_KEY_FOREIGN_UNIQUE, array('userid'), 'user', array('id'));
+        $table->add_key('applyovrsetbyfk', XMLDB_KEY_FOREIGN, array('setby'), 'user', array('id'));
+
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        upgrade_plugin_savepoint(true, 2026020605, 'local', 'jobportal');
+    }
+
+    if ($oldversion < 2026020606) {
+        $dbman = $DB->get_manager();
+        $table = new xmldb_table('local_jobportal_apply_overrides');
+
+        $fields = array(
+            new xmldb_field('isblocked', XMLDB_TYPE_INTEGER, '2', null, XMLDB_NOTNULL, null, 0, 'expiresat'),
+            new xmldb_field('blockreason', XMLDB_TYPE_TEXT, null, null, null, null, null, 'isblocked'),
+            new xmldb_field('blockexpiresat', XMLDB_TYPE_INTEGER, '10', null, null, null, null, 'blockreason'),
+        );
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+
+        upgrade_plugin_savepoint(true, 2026020606, 'local', 'jobportal');
+    }
+
+    if ($oldversion < 2026020607) {
+        $oldvalue = get_config('local_jobportal', 'studentpolicy_blockinterviewnoshow');
+        $newvalue = get_config('local_jobportal', 'studentpolicy_blocknoshow');
+
+        if ($newvalue === false && $oldvalue !== false) {
+            set_config('studentpolicy_blocknoshow', empty($oldvalue) ? 0 : 1, 'local_jobportal');
+        }
+        if ($oldvalue !== false) {
+            unset_config('studentpolicy_blockinterviewnoshow', 'local_jobportal');
+        }
+
+        upgrade_plugin_savepoint(true, 2026020607, 'local', 'jobportal');
+    }
+
     return true;
 }

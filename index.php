@@ -952,90 +952,7 @@ $PAGE->set_heading(get_string('alljobs', 'local_jobportal'));
 local_jobportal_require_styles();
 
 if ($ismanager) {
-    $PAGE->requires->js_init_code("
-        (function() {
-            var master = document.getElementById('jp-select-all');
-            if (master) {
-                master.addEventListener('change', function() {
-                    document.querySelectorAll('.jp-job-select').forEach(function(cb) {
-                        cb.checked = master.checked;
-                    });
-                });
-            }
-
-            var presetInput = document.getElementById('jp-preset');
-            var manualFilterIds = [
-                'jp-search', 'jp-companyid', 'jp-jobstatus', 'jp-jobtype',
-                'jp-listedfrom', 'jp-listedto', 'jp-deadlinefrom', 'jp-deadlineto',
-                'jp-hasapps', 'jp-staledays', 'jp-salarymode', 'jp-salarymin', 'jp-salarymax'
-            ];
-            manualFilterIds.forEach(function(id) {
-                var field = document.getElementById(id);
-                if (!field) {
-                    return;
-                }
-                var clearPreset = function() {
-                    if (presetInput) {
-                        presetInput.value = '';
-                    }
-                };
-                field.addEventListener('change', clearPreset);
-                field.addEventListener('input', clearPreset);
-            });
-
-            var statusSelect = document.getElementById('jp-jobstatus');
-            var staleDaysWrap = document.getElementById('jp-staledays-wrap');
-            var salaryModeSelect = document.getElementById('jp-salarymode');
-            var salaryMinWrap = document.getElementById('jp-salarymin-wrap');
-            var salaryMaxWrap = document.getElementById('jp-salarymax-wrap');
-            var salaryMinInput = document.getElementById('jp-salarymin');
-            var salaryMaxInput = document.getElementById('jp-salarymax');
-            function syncStaleDaysVisibility() {
-                if (!statusSelect || !staleDaysWrap) {
-                    return;
-                }
-                var presetValue = presetInput ? presetInput.value : '';
-                var show = statusSelect.value === 'stale' || presetValue === 'stale14' ||
-                    presetValue === 'noapps14' || presetValue === 'noactivity14';
-                staleDaysWrap.style.display = show ? '' : 'none';
-            }
-            function syncSalaryVisibility() {
-                if (!salaryModeSelect || !salaryMinWrap || !salaryMaxWrap) {
-                    return;
-                }
-                var mode = salaryModeSelect.value;
-                var showMin = mode === 'gt' || mode === 'between';
-                var showMax = mode === 'lt' || mode === 'between';
-                salaryMinWrap.style.display = showMin ? '' : 'none';
-                salaryMaxWrap.style.display = showMax ? '' : 'none';
-                if (salaryMinInput) {
-                    salaryMinInput.disabled = !showMin;
-                }
-                if (salaryMaxInput) {
-                    salaryMaxInput.disabled = !showMax;
-                }
-            }
-            if (statusSelect) {
-                statusSelect.addEventListener('change', syncStaleDaysVisibility);
-            }
-            if (salaryModeSelect) {
-                salaryModeSelect.addEventListener('change', syncSalaryVisibility);
-            }
-            syncStaleDaysVisibility();
-            syncSalaryVisibility();
-
-            var columnSearch = document.getElementById('jp-column-search');
-            if (columnSearch) {
-                columnSearch.addEventListener('input', function() {
-                    var term = columnSearch.value.toLowerCase().trim();
-                    document.querySelectorAll('.jp-column-item').forEach(function(item) {
-                        var label = item.getAttribute('data-col-label') || '';
-                        item.style.display = label.indexOf(term) !== -1 ? '' : 'none';
-                    });
-                });
-            }
-        })();
-    ");
+    $PAGE->requires->js_call_amd('local_jobportal/index_filters', 'init');
 }
 
 if ($ismanager && data_submitted() && optional_param('bulk', 0, PARAM_BOOL) && confirm_sesskey()) {
@@ -1986,11 +1903,68 @@ if ($ismanager) {
         );
     }
 
+    $enforcestudentpolicy = $canapply;
+    $studentpolicy = $enforcestudentpolicy ? local_jobportal_get_student_job_access_policy() : null;
+    $studentpolicyblockers = array();
+    if ($enforcestudentpolicy) {
+        $studentpolicyblockers = local_jobportal_get_student_apply_policy_blockers((int)$USER->id, $studentpolicy);
+    }
+
+    if ($enforcestudentpolicy && $studentpolicy->feedmode === 'openjobs') {
+        echo html_writer::tag(
+            'div',
+            get_string('studentpolicyonlyopenjobsnotice', 'local_jobportal'),
+            array('class' => 'alert alert-info')
+        );
+    }
+    if (!empty($studentpolicyblockers['resumeapproved'])) {
+        echo html_writer::tag(
+            'div',
+            get_string(
+                'studentpolicyresumeapprovedrequired',
+                'local_jobportal',
+                $studentpolicyblockers['resumeapproved']['statuslabel']
+            ),
+            array('class' => 'alert alert-warning')
+        );
+    }
+    if (!empty($studentpolicyblockers['maxactive'])) {
+        echo html_writer::tag(
+            'div',
+            get_string('studentpolicyapplyblockedmaxactive', 'local_jobportal', (object)$studentpolicyblockers['maxactive']),
+            array('class' => 'alert alert-warning')
+        );
+    }
+    if (!empty($studentpolicyblockers['weeklylimit'])) {
+        echo html_writer::tag(
+            'div',
+            get_string('studentpolicyapplyblockedweeklylimit', 'local_jobportal', (object)$studentpolicyblockers['weeklylimit']),
+            array('class' => 'alert alert-warning')
+        );
+    }
+    if (!empty($studentpolicyblockers['cooldown'])) {
+        echo html_writer::tag(
+            'div',
+            get_string('studentpolicyapplyblockedcooldown', 'local_jobportal', (object)$studentpolicyblockers['cooldown']),
+            array('class' => 'alert alert-warning')
+        );
+    }
+
     // Get jobs from database.
     $fromsql = " FROM {local_jobportal_jobs} j
             LEFT JOIN {local_jobportal_companies} c ON c.id = j.companyid
             WHERE j.status = 1";
     $params = array();
+
+    if ($enforcestudentpolicy && $studentpolicy->feedmode === 'openjobs') {
+        $fromsql .= " AND j.drivestate = :studentstateopen
+                      AND (j.deadline IS NULL OR j.deadline = 0 OR j.deadline >= :studentnow)";
+        $params['studentstateopen'] = 'applicationsopen';
+        $params['studentnow'] = $now;
+    }
+    if ($enforcestudentpolicy && !empty($studentpolicyblockers['resumeapproved'])) {
+        $fromsql .= " AND 1 = 0";
+    }
 
     if (!empty($search)) {
         $fromsql .= " AND (j.title LIKE :search1 OR j.company LIKE :search2 OR j.description LIKE :search3 OR c.name LIKE :search4)";
@@ -2183,6 +2157,7 @@ if ($ismanager) {
                     $poststatuslabel = format_string($visiblestage->displayname);
                 }
                 $poststatusclass = 'badge badge-secondary';
+                $offerhighlighthtml = '';
                 if ($visiblestage) {
                     switch ($visiblestage->shortname) {
                         case 'accepted':
@@ -2198,11 +2173,33 @@ if ($ismanager) {
                             $poststatusclass = 'badge badge-info';
                             break;
                     }
+                    if (local_jobportal_is_offer_stage_shortname($visiblestage->shortname)) {
+                        $offerchipattrs = array(
+                            'class' => 'jp-offer-chip jp-offer-chip--' . $visiblestage->shortname . ' jp-job-offer-chip',
+                        );
+                        $offeremotion = local_jobportal_get_offer_status_emotion(
+                            $visiblestage->shortname,
+                            (string)$job->title,
+                            (string)$companyname
+                        );
+                        if ($offeremotion !== '') {
+                            $offerchipattrs['title'] = $offeremotion;
+                        }
+                        $offerhighlighthtml = html_writer::tag(
+                            'span',
+                            get_string('offerstatus', 'local_jobportal') . ': ' .
+                                local_jobportal_get_apply_lock_stage_label($visiblestage->shortname),
+                            $offerchipattrs
+                        );
+                    }
                 }
 
                 echo html_writer::start_div('jp-job-user-status');
                 echo html_writer::div(get_string('yourapplicationstatus', 'local_jobportal'), 'jp-job-user-status-label');
                 echo html_writer::start_div('jp-job-user-status-chips');
+                if ($offerhighlighthtml !== '') {
+                    echo $offerhighlighthtml;
+                }
                 echo html_writer::tag('span', $shortlistlabel, array('class' => $shortlistclass));
                 if ($shortliststatus === 'shortlisted') {
                     echo html_writer::tag(

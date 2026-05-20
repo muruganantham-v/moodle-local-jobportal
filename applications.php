@@ -7,50 +7,6 @@ require_once(__DIR__ . '/locallib.php');
 require_login();
 
 /**
- * Get badge class for shortlist decision.
- *
- * @param string $shortliststatus
- * @return string
- */
-function local_jobportal_shortlist_badge_class($shortliststatus) {
-    switch ($shortliststatus) {
-        case 'internalshortlisted':
-            return 'badge badge-info';
-        case 'shortlisted':
-            return 'badge badge-success';
-        case 'notshortlisted':
-            return 'badge badge-danger';
-        case 'pending':
-            return 'badge badge-warning';
-        default:
-            return 'badge badge-secondary';
-    }
-}
-
-/**
- * Get badge class for post-shortlist stage.
- *
- * @param string $shortname
- * @return string
- */
-function local_jobportal_post_stage_badge_class($shortname) {
-    switch ($shortname) {
-        case 'accepted':
-            return 'badge badge-success';
-        case 'rejected':
-            return 'badge badge-danger';
-        case 'offermade':
-            return 'badge badge-primary';
-        case 'pending':
-            return 'badge badge-warning';
-        case '':
-            return 'badge badge-secondary';
-        default:
-            return 'badge badge-info';
-    }
-}
-
-/**
  * Whether a post-shortlist stage is terminal.
  *
  * @param string $shortname
@@ -115,16 +71,16 @@ function local_jobportal_is_post_stage_transition_allowed($from, $to, $isreopen 
         if (!local_jobportal_is_terminal_post_stage($from)) {
             return false;
         }
-        $reopenallowed = array('testscheduled', 'testdone', 'interviewscheduled', 'offermade');
+        $reopenallowed = array('testscheduled', 'interviewscheduled', 'offermade');
         return in_array($to, $reopenallowed, true);
     }
 
     $matrix = array(
         '' => array('testscheduled', 'interviewscheduled'),
-        'testscheduled' => array('testscheduled', 'testdone', 'interviewscheduled'),
-        'testdone' => array('testscheduled', 'interviewscheduled', 'offermade'),
+        'testscheduled' => array('testscheduled', 'interviewscheduled', 'offermade'),
         'interviewscheduled' => array('interviewscheduled', 'offermade'),
-        // Legacy support for records already in Interview Done.
+        // Legacy support for records already in Test Done / Interview Done.
+        'testdone' => array('testscheduled', 'interviewscheduled', 'offermade'),
         'interviewdone' => array('interviewscheduled', 'offermade'),
         'offermade' => array('accepted', 'rejected'),
         'accepted' => array(),
@@ -209,12 +165,12 @@ function local_jobportal_validate_schedule_meta_for_stage(
         return;
     }
 
-    if (in_array($schedulestatus, array('completed', 'cancelled', 'noshow'), true)) {
+    if (in_array($schedulestatus, array('completed', 'cancelled', 'noshow', 'excused'), true)) {
         $skiphistorycheck = false;
         if (!empty($existingevent->id)) {
             $existingstatus = !empty($existingevent->schedulestatus) ?
                 local_jobportal_normalize_schedule_status($existingevent->schedulestatus) : 'scheduled';
-            if (in_array($existingstatus, array('completed', 'cancelled', 'noshow'), true)) {
+            if (in_array($existingstatus, array('completed', 'cancelled', 'noshow', 'excused'), true)) {
                 $skiphistorycheck = true;
             }
         }
@@ -248,7 +204,7 @@ function local_jobportal_validate_schedule_meta_for_stage(
     if ($schedulestatus === 'completed' && !in_array($roundoutcome, array('cleared', 'notcleared'), true)) {
         redirect($redirecturl, get_string('error:roundoutcomerequiredoncomplete', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
     }
-    if (in_array($schedulestatus, array('cancelled', 'noshow'), true) && $roundoutcome !== 'pending') {
+    if (in_array($schedulestatus, array('cancelled', 'noshow', 'excused'), true) && $roundoutcome !== 'pending') {
         redirect($redirecturl, get_string('error:roundoutcomependingonscheduled', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
     }
 }
@@ -370,8 +326,6 @@ function local_jobportal_apply_post_stage_change($application, $stage, $schedule
 
     if ($stage->shortname === 'interviewscheduled') {
         $update->interviewscheduledat = !empty($scheduledat) ? $scheduledat : $now;
-    } else if ($stage->shortname === 'interviewdone' && empty($application->interviewcompletedat)) {
-        $update->interviewcompletedat = $now;
     } else if ($stage->shortname === 'offermade' && empty($application->offermadeat)) {
         $update->offermadeat = $now;
     }
@@ -1340,7 +1294,9 @@ if ($export === 'xls') {
             foreach ($eventsbyapp[$app->id] as $event) {
                 $line = userdate($event->timecreated, $datetimeformat) . ' - ' . $event->displayname;
                 $eventstageid = (int)$event->stageid;
-                if (isset($poststages[$eventstageid]) && !empty($poststages[$eventstageid]->hasscheduledate)) {
+                $isschedulableevent = !empty($event->hasscheduledate) ||
+                    (isset($poststages[$eventstageid]) && !empty($poststages[$eventstageid]->hasscheduledate));
+                if ($isschedulableevent) {
                     if (!isset($stageeventcounts[$eventstageid])) {
                         $stageeventcounts[$eventstageid] = 0;
                     }
@@ -1350,32 +1306,34 @@ if ($export === 'xls') {
                 if (!empty($event->isinternal)) {
                     $line .= ' (' . get_string('internalstage', 'local_jobportal') . ')';
                 }
-                if (!empty($event->scheduledat)) {
-                    $line .= ' (' . get_string('scheduledfor', 'local_jobportal') . ': ' .
-                        userdate($event->scheduledat, $datetimeformat) . ')';
-                }
-                if (!empty($event->schedulestatus)) {
-                    $line .= ' (' . get_string('schedulestatusvalue', 'local_jobportal',
-                        local_jobportal_get_schedule_status_label($event->schedulestatus)) . ')';
-                }
-                $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
-                $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
-                if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
-                    $line .= ' (' . get_string('roundoutcomevalue', 'local_jobportal',
-                        local_jobportal_get_round_outcome_label($eventoutcome)) . ')';
-                }
-                if (!empty($event->schedulemode)) {
-                    $line .= ' (' . get_string('schedulemodevalue', 'local_jobportal',
-                        local_jobportal_get_schedule_mode_label($event->schedulemode)) . ')';
-                }
-                if (!empty($event->scheduleduration)) {
-                    $line .= ' (' . get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration) . ')';
-                }
-                if (!empty($event->schedulevenue)) {
-                    $line .= ' (' . get_string('schedulevenuevalue', 'local_jobportal', trim((string)$event->schedulevenue)) . ')';
-                }
-                if (!empty($event->schedulelink)) {
-                    $line .= ' (' . get_string('schedulelinkvalue', 'local_jobportal', trim((string)$event->schedulelink)) . ')';
+                if ($isschedulableevent) {
+                    if (!empty($event->scheduledat)) {
+                        $line .= ' (' . get_string('scheduledfor', 'local_jobportal') . ': ' .
+                            userdate($event->scheduledat, $datetimeformat) . ')';
+                    }
+                    if (!empty($event->schedulestatus)) {
+                        $line .= ' (' . get_string('schedulestatusvalue', 'local_jobportal',
+                            local_jobportal_get_schedule_status_label($event->schedulestatus)) . ')';
+                    }
+                    $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
+                    $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
+                    if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
+                        $line .= ' (' . get_string('roundoutcomevalue', 'local_jobportal',
+                            local_jobportal_get_round_outcome_label($eventoutcome)) . ')';
+                    }
+                    if (!empty($event->schedulemode)) {
+                        $line .= ' (' . get_string('schedulemodevalue', 'local_jobportal',
+                            local_jobportal_get_schedule_mode_label($event->schedulemode)) . ')';
+                    }
+                    if (!empty($event->scheduleduration)) {
+                        $line .= ' (' . get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration) . ')';
+                    }
+                    if (!empty($event->schedulevenue)) {
+                        $line .= ' (' . get_string('schedulevenuevalue', 'local_jobportal', trim((string)$event->schedulevenue)) . ')';
+                    }
+                    if (!empty($event->schedulelink)) {
+                        $line .= ' (' . get_string('schedulelinkvalue', 'local_jobportal', trim((string)$event->schedulelink)) . ')';
+                    }
                 }
                 if (!empty($event->notes)) {
                     $line .= ' - ' . $event->notes;
@@ -1599,311 +1557,7 @@ if (empty($applications)) {
         echo $OUTPUT->paging_bar($filteredapplicationscount, $page, $perpage, $pagingurl);
     }
 
-    $PAGE->requires->js_init_code("
-        (function() {
-            var toggle = document.getElementById('jp-select-all');
-            if (toggle) {
-                toggle.addEventListener('change', function() {
-                    var boxes = document.querySelectorAll('.jp-app-select');
-                    boxes.forEach(function(box) {
-                        box.checked = toggle.checked;
-                    });
-                });
-            }
-
-            var expandButtons = document.querySelectorAll('.jp-expand-all');
-            expandButtons.forEach(function(button) {
-                button.addEventListener('click', function() {
-                    var appid = button.getAttribute('data-appid');
-                    if (!appid) {
-                        return;
-                    }
-                    var sections = document.querySelectorAll('.jp-section-' + appid);
-                    sections.forEach(function(section) {
-                        section.classList.add('show');
-                    });
-                });
-            });
-
-            var collapseButtons = document.querySelectorAll('.jp-collapse-all');
-            collapseButtons.forEach(function(button) {
-                button.addEventListener('click', function() {
-                    var appid = button.getAttribute('data-appid');
-                    if (!appid) {
-                        return;
-                    }
-                    var sections = document.querySelectorAll('.jp-section-' + appid);
-                    sections.forEach(function(section) {
-                        section.classList.remove('show');
-                    });
-                });
-            });
-
-            var previewPanel = document.getElementById('jp-resume-preview-panel');
-            var previewFrame = document.getElementById('jp-resume-preview-frame');
-            var previewClose = document.getElementById('jp-resume-preview-close');
-            var previewTriggers = document.querySelectorAll('.jp-resume-preview-trigger');
-
-            previewTriggers.forEach(function(trigger) {
-                trigger.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (!previewPanel || !previewFrame) {
-                        return;
-                    }
-                    var url = trigger.getAttribute('data-resume-url');
-                    if (!url) {
-                        return;
-                    }
-                    previewFrame.setAttribute('src', url);
-                    previewPanel.classList.remove('d-none');
-                    previewPanel.scrollIntoView({behavior: 'smooth', block: 'start'});
-                });
-            });
-
-            if (previewClose) {
-                previewClose.addEventListener('click', function() {
-                    if (previewFrame) {
-                        previewFrame.setAttribute('src', 'about:blank');
-                    }
-                    if (previewPanel) {
-                        previewPanel.classList.add('d-none');
-                    }
-                });
-            }
-
-            var stageScheduleMap = " . json_encode($stageschedulablemap) . ";
-            function findControl(form, name) {
-                if (!form || !name) {
-                    return null;
-                }
-                return form.querySelector('[name=\"' + name + '\"]');
-            }
-            function setControlVisible(control, visible) {
-                if (!control) {
-                    return;
-                }
-                var wrapper = control.closest('.jp-inline-col-select, .jp-inline-col-date, .jp-inline-col-note');
-                if (wrapper) {
-                    wrapper.style.display = visible ? '' : 'none';
-                } else {
-                    control.style.display = visible ? '' : 'none';
-                }
-                if (typeof control.disabled !== 'undefined') {
-                    control.disabled = !visible;
-                }
-            }
-            function setControlValue(control, value) {
-                if (!control) {
-                    return;
-                }
-                control.value = value;
-            }
-            function bindScheduleControls(form, config) {
-                if (!form) {
-                    return;
-                }
-                var stageControl = findControl(form, config.stageField || '');
-                var selectionControl = findControl(form, config.selectionField || config.stageField || '');
-                var dateControl = findControl(form, config.dateField);
-                var statusControl = findControl(form, config.statusField);
-                var outcomeControl = findControl(form, config.outcomeField);
-                var modeControl = findControl(form, config.modeField);
-                var durationControl = findControl(form, config.durationField);
-                var linkControl = findControl(form, config.linkField);
-                var venueControl = findControl(form, config.venueField);
-                if (!dateControl && !statusControl && !outcomeControl && !modeControl && !durationControl && !linkControl && !venueControl) {
-                    return;
-                }
-
-                var sync = function() {
-                    var selected = true;
-                    if (selectionControl) {
-                        selected = selectionControl.value !== '';
-                    }
-
-                    var schedulable = false;
-                    if (selected) {
-                        if (config.forceSchedulable) {
-                            schedulable = true;
-                        } else if (stageControl && stageControl.value !== '' &&
-                                Object.prototype.hasOwnProperty.call(stageScheduleMap, stageControl.value)) {
-                            schedulable = !!stageScheduleMap[stageControl.value];
-                        }
-                    }
-
-                    if (!schedulable) {
-                        setControlValue(statusControl, 'scheduled');
-                        setControlValue(outcomeControl, 'pending');
-                        setControlValue(modeControl, '');
-                        setControlValue(dateControl, '');
-                        setControlValue(durationControl, '');
-                        setControlValue(linkControl, '');
-                        setControlValue(venueControl, '');
-                    }
-
-                    var status = statusControl ? statusControl.value : 'scheduled';
-                    var isplanning = status === 'scheduled' || status === 'rescheduled';
-                    var iscompleted = status === 'completed';
-                    var mode = modeControl ? modeControl.value : '';
-
-                    setControlVisible(statusControl, schedulable);
-                    setControlVisible(dateControl, schedulable && isplanning);
-                    setControlVisible(durationControl, schedulable && isplanning);
-                    setControlVisible(modeControl, schedulable && isplanning);
-                    setControlVisible(outcomeControl, schedulable && iscompleted);
-
-                    if (!(schedulable && iscompleted)) {
-                        setControlValue(outcomeControl, 'pending');
-                    }
-                    if (!(schedulable && isplanning)) {
-                        setControlValue(modeControl, '');
-                        setControlValue(dateControl, '');
-                        setControlValue(durationControl, '');
-                    }
-
-                    var showLink = schedulable && isplanning && (mode === 'online' || mode === 'hybrid');
-                    var showVenue = schedulable && isplanning && (mode === 'offline' || mode === 'hybrid');
-                    setControlVisible(linkControl, showLink);
-                    setControlVisible(venueControl, showVenue);
-                    if (!showLink) {
-                        setControlValue(linkControl, '');
-                    }
-                    if (!showVenue) {
-                        setControlValue(venueControl, '');
-                    }
-                };
-
-                if (selectionControl) {
-                    selectionControl.addEventListener('change', sync);
-                }
-                if (statusControl) {
-                    statusControl.addEventListener('change', sync);
-                }
-                if (modeControl) {
-                    modeControl.addEventListener('change', sync);
-                }
-                sync();
-            }
-
-            var bulkForm = document.querySelector('.jp-bulk-section form[method=\"post\"]');
-            if (bulkForm) {
-                bindScheduleControls(bulkForm, {
-                    stageField: 'stageid',
-                    selectionField: 'stageid',
-                    dateField: 'scheduleddatetime',
-                    statusField: 'schedulestatus',
-                    outcomeField: 'roundoutcome',
-                    modeField: 'schedulemode',
-                    durationField: 'scheduleduration',
-                    linkField: 'schedulelink',
-                    venueField: 'schedulevenue'
-                });
-                bindScheduleControls(bulkForm, {
-                    stageField: 'round_stageid',
-                    selectionField: 'round_stageid',
-                    dateField: 'round_scheduleddatetime',
-                    statusField: 'round_schedulestatus',
-                    outcomeField: 'round_roundoutcome',
-                    modeField: 'round_schedulemode',
-                    durationField: 'round_scheduleduration',
-                    linkField: 'round_schedulelink',
-                    venueField: 'round_schedulevenue'
-                });
-            }
-
-            document.querySelectorAll('form').forEach(function(form) {
-                var actionInput = findControl(form, 'action');
-                var action = actionInput ? actionInput.value : '';
-                if (action === 'changepoststage' || action === 'reopenpoststage') {
-                    bindScheduleControls(form, {
-                        stageField: 'stageid',
-                        selectionField: 'stageid',
-                        dateField: 'scheduleddatetime',
-                        statusField: 'schedulestatus',
-                        outcomeField: 'roundoutcome',
-                        modeField: 'schedulemode',
-                        durationField: 'scheduleduration',
-                        linkField: 'schedulelink',
-                        venueField: 'schedulevenue'
-                    });
-                } else if (action === 'updateroundevent') {
-                    bindScheduleControls(form, {
-                        selectionField: 'eventid',
-                        forceSchedulable: true,
-                        dateField: 'scheduleddatetime',
-                        statusField: 'schedulestatus',
-                        outcomeField: 'roundoutcome',
-                        modeField: 'schedulemode',
-                        durationField: 'scheduleduration',
-                        linkField: 'schedulelink',
-                        venueField: 'schedulevenue'
-                    });
-                }
-            });
-
-            var roundVisibilityToggles = document.querySelectorAll('.jp-round-show-closed');
-            function findSelectOption(select, value) {
-                if (!select) {
-                    return null;
-                }
-                for (var i = 0; i < select.options.length; i++) {
-                    if (select.options[i].value === value) {
-                        return select.options[i];
-                    }
-                }
-                return null;
-            }
-            roundVisibilityToggles.forEach(function(toggle) {
-                var targetid = toggle.getAttribute('data-target');
-                if (!targetid) {
-                    return;
-                }
-                var select = document.getElementById(targetid);
-                if (!select) {
-                    return;
-                }
-                var closedraw = toggle.getAttribute('data-closed-options') || '{}';
-                var closedoptions = {};
-                try {
-                    closedoptions = JSON.parse(closedraw);
-                } catch (e) {
-                    closedoptions = {};
-                }
-                var closedids = Object.keys(closedoptions);
-                var syncClosedOptions = function() {
-                    var showclosed = !!toggle.checked;
-                    var removedselected = false;
-                    if (showclosed) {
-                        closedids.forEach(function(id) {
-                            if (!findSelectOption(select, id)) {
-                                var opt = document.createElement('option');
-                                opt.value = id;
-                                opt.text = closedoptions[id];
-                                opt.setAttribute('data-round-closed', '1');
-                                select.appendChild(opt);
-                            }
-                        });
-                        return;
-                    }
-                    closedids.forEach(function(id) {
-                        var existing = findSelectOption(select, id);
-                        if (!existing) {
-                            return;
-                        }
-                        if (existing.selected) {
-                            removedselected = true;
-                        }
-                        existing.remove();
-                    });
-                    if (removedselected) {
-                        select.value = '';
-                    }
-                };
-                toggle.addEventListener('change', syncClosedOptions);
-                syncClosedOptions();
-            });
-        })();
-    ");
+    $PAGE->requires->js_call_amd('local_jobportal/applications_ui', 'init', array($stageschedulablemap));
 
     if (empty($showapp)) {
         echo html_writer::start_tag('div', array('class' => 'jp-bulk-section'));
@@ -2086,10 +1740,19 @@ if (empty($applications)) {
         }
         $openapplicationparams = array_merge($openapplicationparams, $appfilterparams);
         $openapplicationurl = new moodle_url('/local/jobportal/application.php', $openapplicationparams);
-        $actionscontent = html_writer::link(
-            $openapplicationurl,
-            get_string('openapplication', 'local_jobportal'),
-            array('class' => 'btn btn-outline-primary btn-sm')
+        $studentprofileurl = new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$app->userid));
+        $actionscontent = html_writer::div(
+            html_writer::link(
+                $openapplicationurl,
+                get_string('openapplication', 'local_jobportal'),
+                array('class' => 'btn btn-outline-primary btn-sm')
+            ),
+            'mb-1'
+        );
+        $actionscontent .= html_writer::link(
+            $studentprofileurl,
+            get_string('viewstudentprofile', 'local_jobportal'),
+            array('class' => 'btn btn-outline-secondary btn-sm')
         );
 
         echo html_writer::start_tag('tr');

@@ -262,41 +262,7 @@ $completionlabel = get_string(
 );
 
 if ($resumecanpreview && $resumepreviewurl) {
-    $PAGE->requires->js_init_code("
-        (function() {
-            var panel = document.getElementById('jp-resume-preview-panel');
-            var frame = document.getElementById('jp-resume-preview-frame');
-            var close = document.getElementById('jp-resume-preview-close');
-            var triggers = document.querySelectorAll('.jp-resume-preview-trigger');
-
-            triggers.forEach(function(trigger) {
-                trigger.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (!panel || !frame) {
-                        return;
-                    }
-                    var url = trigger.getAttribute('data-resume-url');
-                    if (!url) {
-                        return;
-                    }
-                    frame.setAttribute('src', url);
-                    panel.classList.remove('d-none');
-                    panel.scrollIntoView({behavior: 'smooth', block: 'start'});
-                });
-            });
-
-            if (close) {
-                close.addEventListener('click', function() {
-                    if (frame) {
-                        frame.setAttribute('src', 'about:blank');
-                    }
-                    if (panel) {
-                        panel.classList.add('d-none');
-                    }
-                });
-            }
-        })();
-    ");
+    $PAGE->requires->js_call_amd('local_jobportal/resume_preview', 'init');
 }
 
 echo $OUTPUT->header();

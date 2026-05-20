@@ -94,7 +94,9 @@ $datetimeformat = '%d/%m/%Y %H:%M';
 
 // Check if user has already applied
 $hasapplied = false;
+$applylockinfo = null;
 if (has_capability('local/jobportal:apply', $context)) {
+    $applylockinfo = local_jobportal_get_student_apply_lock_info((int)$USER->id);
     $hasapplied = $DB->record_exists('local_jobportal_applications', 
         array('jobid' => $job->id, 'userid' => $USER->id));
 }
@@ -316,26 +318,7 @@ if ($canmanagejobs) {
     echo html_writer::end_tag('div');
     echo html_writer::end_tag('div');
 
-    $PAGE->requires->js_init_code("
-        (function() {
-            var stateSelect = document.getElementById('jp-drivestate');
-            var outcomeWrap = document.getElementById('jp-driveoutcome-wrap');
-            var outcomeSelect = document.getElementById('jp-driveoutcome');
-            if (!stateSelect || !outcomeWrap || !outcomeSelect) {
-                return;
-            }
-            var sync = function() {
-                var show = stateSelect.value === 'completed';
-                outcomeWrap.style.display = show ? '' : 'none';
-                outcomeSelect.disabled = !show;
-                if (!show) {
-                    outcomeSelect.value = '';
-                }
-            };
-            stateSelect.addEventListener('change', sync);
-            sync();
-        })();
-    ");
+    $PAGE->requires->js_call_amd('local_jobportal/view_drive_state', 'init');
 }
 
 // Requirements
@@ -357,6 +340,12 @@ if (has_capability('local/jobportal:apply', $context)) {
     if ($hasapplied) {
         echo html_writer::tag('div', get_string('alreadyapplied', 'local_jobportal'), 
             array('class' => 'alert alert-info'));
+    } else if (!empty($applylockinfo->locked)) {
+        echo html_writer::tag(
+            'div',
+            local_jobportal_get_student_apply_lock_message($applylockinfo, false),
+            array('class' => 'alert alert-warning')
+        );
     } else if (!$hasprofileresume) {
         $resumelink = html_writer::link(
             new moodle_url('/local/jobportal/profile.php'),

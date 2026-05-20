@@ -59,7 +59,6 @@ function xmldb_local_jobportal_install() {
         array('shortname' => 'shortlisted', 'displayname' => 'Shortlisted', 'sortorder' => 25, 'isterminal' => 0, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'notshortlisted', 'displayname' => 'Not Shortlisted', 'sortorder' => 26, 'isterminal' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'testscheduled', 'displayname' => 'Test Scheduled', 'sortorder' => 30, 'isterminal' => 0, 'isinternal' => 0, 'hasscheduledate' => 1),
-        array('shortname' => 'testdone', 'displayname' => 'Test Done', 'sortorder' => 40, 'isterminal' => 0, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'interviewscheduled', 'displayname' => 'Interview Scheduled', 'sortorder' => 50, 'isterminal' => 0, 'isinternal' => 0, 'hasscheduledate' => 1),
         array('shortname' => 'offermade', 'displayname' => 'Offer Made', 'sortorder' => 70, 'isterminal' => 0, 'isinternal' => 0, 'hasscheduledate' => 0),
         array('shortname' => 'accepted', 'displayname' => 'Offer Accepted', 'sortorder' => 80, 'isterminal' => 1, 'isinternal' => 0, 'hasscheduledate' => 0),

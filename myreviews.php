@@ -162,9 +162,16 @@ if (empty($assignments)) {
             html_writer::tag('span', $resumelabel, array('class' => $resumebadge)),
             userdate($assignment->timeassigned, $dateformat),
             $timereviewed,
+            html_writer::div(
+                html_writer::link(
+                    new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$assignment->profileid)),
+                    get_string('openreview', 'local_jobportal')
+                ),
+                'mb-1'
+            ) .
             html_writer::link(
-                new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$assignment->profileid)),
-                get_string('openreview', 'local_jobportal')
+                new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$assignment->studentid)),
+                get_string('viewstudentprofile', 'local_jobportal')
             ),
         );
     }

@@ -201,9 +201,16 @@ if (empty($profiles)) {
             html_writer::tag('span', $statuslabel, array('class' => $statusbadge)),
             s($reviewerslabel),
             $reviewedlabel,
+            html_writer::div(
+                html_writer::link(
+                    new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$profile->id)),
+                    get_string('openreview', 'local_jobportal')
+                ),
+                'mb-1'
+            ) .
             html_writer::link(
-                new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$profile->id)),
-                get_string('openreview', 'local_jobportal')
+                new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$profile->userid)),
+                get_string('viewstudentprofile', 'local_jobportal')
             ),
         );
     }

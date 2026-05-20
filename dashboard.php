@@ -16,6 +16,13 @@ function local_jobportal_dashboard_count_stage_reached($shortname) {
     if ($shortname === 'shortlisted' || $shortname === 'notshortlisted') {
         return (int)$DB->count_records('local_jobportal_applications', array('shortliststatus' => $shortname));
     }
+    // Terminal offer outcomes must stay mutually exclusive; count current state only.
+    if ($shortname === 'accepted' || $shortname === 'rejected') {
+        return (int)$DB->count_records('local_jobportal_applications', array(
+            'shortliststatus' => 'shortlisted',
+            'status' => $shortname,
+        ));
+    }
 
     $poststages = local_jobportal_get_post_shortlist_stage_shortnames();
     if (in_array($shortname, $poststages, true)) {
@@ -90,6 +97,40 @@ if ($staledays < 1) {
 } else if ($staledays > 60) {
     $staledays = 60;
 }
+$stalesortby = optional_param('stalesortby', 'daysinactive', PARAM_ALPHANUMEXT);
+$stalesortdir = optional_param('stalesortdir', 'desc', PARAM_ALPHA);
+$staleallowedsort = array(
+    'applicantname',
+    'jobtitle',
+    'company',
+    'currentstage',
+    'appliedon',
+    'lastactivity',
+    'daysinactive',
+    'daysopen',
+);
+if (!in_array($stalesortby, $staleallowedsort, true)) {
+    $stalesortby = 'daysinactive';
+}
+$stalesortdir = core_text::strtolower($stalesortdir) === 'asc' ? 'asc' : 'desc';
+
+$companystatssortby = optional_param('companystatssortby', 'applicationsreceived', PARAM_ALPHANUMEXT);
+$companystatssortdir = optional_param('companystatssortdir', 'desc', PARAM_ALPHA);
+$companystatsallowedsort = array(
+    'company',
+    'jobsposted',
+    'activejobs',
+    'applicationsreceived',
+    'shortlistedcount',
+    'offermadecount',
+    'acceptedcount',
+    'notshortlistedcount',
+);
+if (!in_array($companystatssortby, $companystatsallowedsort, true)) {
+    $companystatssortby = 'applicationsreceived';
+}
+$companystatssortdir = core_text::strtolower($companystatssortdir) === 'asc' ? 'asc' : 'desc';
+
 $stalepage = optional_param('stalepage', 0, PARAM_INT);
 if ($stalepage < 0) {
     $stalepage = 0;
@@ -102,7 +143,13 @@ $staleperpage = 10;
 $companystatsperpage = 10;
 
 $baseurl = new moodle_url('/local/jobportal/dashboard.php');
-$urlparams = array('staledays' => $staledays);
+$urlparams = array(
+    'staledays' => $staledays,
+    'stalesortby' => $stalesortby,
+    'stalesortdir' => $stalesortdir,
+    'companystatssortby' => $companystatssortby,
+    'companystatssortdir' => $companystatssortdir,
+);
 if (!empty($stalepage)) {
     $urlparams['stalepage'] = $stalepage;
 }
@@ -143,6 +190,7 @@ $activepipelinecount = 0;
 $totaldaysopen = 0;
 $staleapplications = array();
 $now = time();
+$shortlistoptions = local_jobportal_get_shortlist_status_options();
 
 foreach ($applicationsforaging as $application) {
     $shortliststatus = local_jobportal_get_application_shortlist_status($application);
@@ -160,15 +208,64 @@ foreach ($applicationsforaging as $application) {
     if ($daysinactive >= $staledays) {
         $application->daysopen = $daysopen;
         $application->daysinactive = $daysinactive;
+        $shortlistlabel = isset($shortlistoptions[$shortliststatus]) ?
+            $shortlistoptions[$shortliststatus] : get_string('pending', 'local_jobportal');
+        $stage = local_jobportal_get_application_stage($application, $stages);
+        $stagename = $shortlistlabel;
+        if ($shortliststatus === 'shortlisted') {
+            if ($stage) {
+                $stagename .= ' / ' . format_string($stage->displayname);
+            } else {
+                $stagename .= ' / ' . get_string('poststagenotset', 'local_jobportal');
+            }
+        }
+        $application->stagedisplay = $stagename;
+        $application->applicantnamedisplay = fullname($application);
+        $application->companydisplay = !empty($application->companyname) ? $application->companyname : '-';
         $staleapplications[] = $application;
     }
 }
 
-usort($staleapplications, function($a, $b) {
-    if ($a->daysinactive === $b->daysinactive) {
-        return $b->daysopen <=> $a->daysopen;
+usort($staleapplications, function($a, $b) use ($stalesortby, $stalesortdir) {
+    $cmp = 0;
+    switch ($stalesortby) {
+        case 'applicantname':
+            $cmp = strcmp(core_text::strtolower($a->applicantnamedisplay), core_text::strtolower($b->applicantnamedisplay));
+            break;
+        case 'jobtitle':
+            $cmp = strcmp(core_text::strtolower((string)$a->jobtitle), core_text::strtolower((string)$b->jobtitle));
+            break;
+        case 'company':
+            $cmp = strcmp(core_text::strtolower((string)$a->companydisplay), core_text::strtolower((string)$b->companydisplay));
+            break;
+        case 'currentstage':
+            $cmp = strcmp(core_text::strtolower((string)$a->stagedisplay), core_text::strtolower((string)$b->stagedisplay));
+            break;
+        case 'appliedon':
+            $cmp = ((int)$a->timecreated <=> (int)$b->timecreated);
+            break;
+        case 'lastactivity':
+            $cmp = ((int)$a->lastactivity <=> (int)$b->lastactivity);
+            break;
+        case 'daysopen':
+            $cmp = ((int)$a->daysopen <=> (int)$b->daysopen);
+            break;
+        case 'daysinactive':
+        default:
+            $cmp = ((int)$a->daysinactive <=> (int)$b->daysinactive);
+            break;
     }
-    return $b->daysinactive <=> $a->daysinactive;
+
+    if ($stalesortdir === 'desc') {
+        $cmp *= -1;
+    }
+    if ($cmp === 0) {
+        $cmp = ((int)$b->daysinactive <=> (int)$a->daysinactive);
+    }
+    if ($cmp === 0) {
+        $cmp = ((int)$b->id <=> (int)$a->id);
+    }
+    return $cmp;
 });
 $staletotalcount = count($staleapplications);
 $staleapplications = array_slice($staleapplications, $stalepage * $staleperpage, $staleperpage);
@@ -209,6 +306,49 @@ $companystats = $DB->get_records_sql($companysql, array(
     'notshortlisted' => 'notshortlisted',
 ));
 $companystats = array_values($companystats);
+
+usort($companystats, function($a, $b) use ($companystatssortby, $companystatssortdir) {
+    $cmp = 0;
+    switch ($companystatssortby) {
+        case 'company':
+            $cmp = strcmp(core_text::strtolower((string)$a->name), core_text::strtolower((string)$b->name));
+            break;
+        case 'jobsposted':
+            $cmp = ((int)$a->jobsposted <=> (int)$b->jobsposted);
+            break;
+        case 'activejobs':
+            $cmp = ((int)$a->activejobs <=> (int)$b->activejobs);
+            break;
+        case 'shortlistedcount':
+            $cmp = ((int)$a->shortlistedcount <=> (int)$b->shortlistedcount);
+            break;
+        case 'offermadecount':
+            $cmp = ((int)$a->offermadecount <=> (int)$b->offermadecount);
+            break;
+        case 'acceptedcount':
+            $cmp = ((int)$a->acceptedcount <=> (int)$b->acceptedcount);
+            break;
+        case 'notshortlistedcount':
+            $cmp = ((int)$a->notshortlistedcount <=> (int)$b->notshortlistedcount);
+            break;
+        case 'applicationsreceived':
+        default:
+            $cmp = ((int)$a->applicationsreceived <=> (int)$b->applicationsreceived);
+            break;
+    }
+
+    if ($companystatssortdir === 'desc') {
+        $cmp *= -1;
+    }
+    if ($cmp === 0) {
+        $cmp = strcmp(core_text::strtolower((string)$a->name), core_text::strtolower((string)$b->name));
+    }
+    if ($cmp === 0) {
+        $cmp = ((int)$a->id <=> (int)$b->id);
+    }
+    return $cmp;
+});
+
 $companystatstotalcount = count($companystats);
 $companystatspaged = array_slice($companystats, $companystatspage * $companystatsperpage, $companystatsperpage);
 
@@ -292,6 +432,10 @@ if (!isset($staleoptions[$staledays])) {
 }
 
 echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'form-inline mb-3'));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'stalesortby', 'value' => $stalesortby));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'stalesortdir', 'value' => $stalesortdir));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'companystatssortby', 'value' => $companystatssortby));
+echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'companystatssortdir', 'value' => $companystatssortdir));
 echo html_writer::tag('label', get_string('stalethreshold', 'local_jobportal') . ': ', array('class' => 'mr-2'));
 echo html_writer::select($staleoptions, 'staledays', $staledays, false, array('class' => 'custom-select custom-select-sm mr-2'));
 echo html_writer::tag('button', get_string('filter'), array('type' => 'submit', 'class' => 'btn btn-sm btn-outline-secondary'));
@@ -302,6 +446,10 @@ if (empty($staletotalcount)) {
 } else {
     $stalepagingurl = new moodle_url('/local/jobportal/dashboard.php', array(
         'staledays' => $staledays,
+        'stalesortby' => $stalesortby,
+        'stalesortdir' => $stalesortdir,
+        'companystatssortby' => $companystatssortby,
+        'companystatssortdir' => $companystatssortdir,
         'companystatspage' => $companystatspage,
     ));
     if ($staletotalcount > $staleperpage) {
@@ -310,42 +458,57 @@ if (empty($staletotalcount)) {
 
     echo html_writer::start_tag('div', array('class' => 'table-responsive'));
     echo html_writer::start_tag('table', array('class' => 'table table-sm table-striped table-bordered mb-0 jp-table jp-data-table jp-stale-table'));
+    $staleheader = function($key, $label) use (
+        $staledays,
+        $stalesortby,
+        $stalesortdir,
+        $companystatssortby,
+        $companystatssortdir,
+        $companystatspage
+    ) {
+        $defaultdir = in_array($key, array('applicantname', 'jobtitle', 'company', 'currentstage'), true) ? 'asc' : 'desc';
+        $nextdir = ($stalesortby === $key && $stalesortdir === 'asc') ? 'desc' : 'asc';
+        if ($stalesortby !== $key) {
+            $nextdir = $defaultdir;
+        }
+        $params = array(
+            'staledays' => $staledays,
+            'stalesortby' => $key,
+            'stalesortdir' => $nextdir,
+            'companystatssortby' => $companystatssortby,
+            'companystatssortdir' => $companystatssortdir,
+            'stalepage' => 0,
+            'companystatspage' => $companystatspage,
+        );
+        $content = s($label);
+        if ($stalesortby === $key) {
+            $content .= ' <span class="jp-sort-indicator">' . ($stalesortdir === 'asc' ? '↑' : '↓') . '</span>';
+        }
+        return html_writer::link(new moodle_url('/local/jobportal/dashboard.php', $params), $content, array('class' => 'jp-sort-header'));
+    };
     echo html_writer::tag(
         'thead',
         html_writer::tag(
             'tr',
-            html_writer::tag('th', get_string('applicantname', 'local_jobportal')) .
-            html_writer::tag('th', get_string('jobtitle', 'local_jobportal')) .
-            html_writer::tag('th', get_string('company', 'local_jobportal')) .
-            html_writer::tag('th', get_string('currentstage', 'local_jobportal')) .
-            html_writer::tag('th', get_string('appliedon', 'local_jobportal')) .
-            html_writer::tag('th', get_string('lastactivity', 'local_jobportal')) .
-            html_writer::tag('th', get_string('daysinactive', 'local_jobportal')) .
-            html_writer::tag('th', get_string('daysopen', 'local_jobportal')) .
+            html_writer::tag('th', $staleheader('applicantname', get_string('applicantname', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('jobtitle', get_string('jobtitle', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('company', get_string('company', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('currentstage', get_string('currentstage', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('appliedon', get_string('appliedon', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('lastactivity', get_string('lastactivity', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('daysinactive', get_string('daysinactive', 'local_jobportal'))) .
+            html_writer::tag('th', $staleheader('daysopen', get_string('daysopen', 'local_jobportal'))) .
             html_writer::tag('th', get_string('actions'))
         )
     );
     echo html_writer::start_tag('tbody');
     foreach ($staleapplications as $application) {
-        $shortliststatus = local_jobportal_get_application_shortlist_status($application);
-        $shortlistoptions = local_jobportal_get_shortlist_status_options();
-        $shortlistlabel = isset($shortlistoptions[$shortliststatus]) ?
-            $shortlistoptions[$shortliststatus] : get_string('pending', 'local_jobportal');
-        $stage = local_jobportal_get_application_stage($application, $stages);
-        $stagename = $shortlistlabel;
-        if ($shortliststatus === 'shortlisted') {
-            if ($stage) {
-                $stagename .= ' / ' . format_string($stage->displayname);
-            } else {
-                $stagename .= ' / ' . get_string('poststagenotset', 'local_jobportal');
-            }
-        }
         echo html_writer::tag(
             'tr',
-            html_writer::tag('td', fullname($application)) .
+            html_writer::tag('td', s($application->applicantnamedisplay)) .
             html_writer::tag('td', format_string($application->jobtitle)) .
-            html_writer::tag('td', s($application->companyname ?: '-')) .
-            html_writer::tag('td', $stagename) .
+            html_writer::tag('td', s($application->companydisplay)) .
+            html_writer::tag('td', s($application->stagedisplay)) .
             html_writer::tag('td', userdate($application->timecreated, $dateformat)) .
             html_writer::tag('td', userdate($application->lastactivity, $dateformat)) .
             html_writer::tag('td', (int)$application->daysinactive) .
@@ -380,6 +543,10 @@ if (empty($companystatstotalcount)) {
 } else {
     $companystatspagingurl = new moodle_url('/local/jobportal/dashboard.php', array(
         'staledays' => $staledays,
+        'stalesortby' => $stalesortby,
+        'stalesortdir' => $stalesortdir,
+        'companystatssortby' => $companystatssortby,
+        'companystatssortdir' => $companystatssortdir,
         'stalepage' => $stalepage,
     ));
     if ($companystatstotalcount > $companystatsperpage) {
@@ -388,18 +555,46 @@ if (empty($companystatstotalcount)) {
 
     echo html_writer::start_tag('div', array('class' => 'table-responsive'));
     echo html_writer::start_tag('table', array('class' => 'table table-sm table-striped table-bordered mb-0 jp-table jp-data-table jp-company-stats-table'));
+    $companystatsheader = function($key, $label) use (
+        $staledays,
+        $stalepage,
+        $stalesortby,
+        $stalesortdir,
+        $companystatssortby,
+        $companystatssortdir
+    ) {
+        $defaultdir = $key === 'company' ? 'asc' : 'desc';
+        $nextdir = ($companystatssortby === $key && $companystatssortdir === 'asc') ? 'desc' : 'asc';
+        if ($companystatssortby !== $key) {
+            $nextdir = $defaultdir;
+        }
+        $params = array(
+            'staledays' => $staledays,
+            'stalesortby' => $stalesortby,
+            'stalesortdir' => $stalesortdir,
+            'companystatssortby' => $key,
+            'companystatssortdir' => $nextdir,
+            'stalepage' => $stalepage,
+            'companystatspage' => 0,
+        );
+        $content = s($label);
+        if ($companystatssortby === $key) {
+            $content .= ' <span class="jp-sort-indicator">' . ($companystatssortdir === 'asc' ? '↑' : '↓') . '</span>';
+        }
+        return html_writer::link(new moodle_url('/local/jobportal/dashboard.php', $params), $content, array('class' => 'jp-sort-header'));
+    };
     echo html_writer::tag(
         'thead',
         html_writer::tag(
             'tr',
-            html_writer::tag('th', get_string('company', 'local_jobportal')) .
-            html_writer::tag('th', get_string('jobsposted', 'local_jobportal')) .
-            html_writer::tag('th', get_string('activejobs', 'local_jobportal')) .
-            html_writer::tag('th', get_string('applicationsreceived', 'local_jobportal')) .
-            html_writer::tag('th', get_string('shortlisted', 'local_jobportal')) .
-            html_writer::tag('th', get_string('offermadecount', 'local_jobportal')) .
-            html_writer::tag('th', get_string('offeracceptedcount', 'local_jobportal')) .
-            html_writer::tag('th', get_string('notshortlistedcount', 'local_jobportal')) .
+            html_writer::tag('th', $companystatsheader('company', get_string('company', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('jobsposted', get_string('jobsposted', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('activejobs', get_string('activejobs', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('applicationsreceived', get_string('applicationsreceived', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('shortlistedcount', get_string('shortlisted', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('offermadecount', get_string('offermadecount', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('acceptedcount', get_string('offeracceptedcount', 'local_jobportal'))) .
+            html_writer::tag('th', $companystatsheader('notshortlistedcount', get_string('notshortlistedcount', 'local_jobportal'))) .
             html_writer::tag('th', get_string('actions'))
         )
     );

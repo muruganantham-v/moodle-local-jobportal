@@ -145,6 +145,27 @@
       </INDEXES>
     </TABLE>
 
+    <TABLE NAME="local_jobportal_apply_overrides" COMMENT="Per-student application access controls (override + manual block)">
+      <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="isenabled" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="reason" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="expiresat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="isblocked" TYPE="int" LENGTH="2" NOTNULL="true" DEFAULT="0" SEQUENCE="false"/>
+        <FIELD NAME="blockreason" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="blockexpiresat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="setby" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
+      </FIELDS>
+      <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="applyovruseruniqfk" TYPE="foreign-unique" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="applyovrsetbyfk" TYPE="foreign" FIELDS="setby" REFTABLE="user" REFFIELDS="id"/>
+      </KEYS>
+    </TABLE>
+
     <TABLE NAME="local_jobportal_appstage_events" COMMENT="Stage transition history for applications">
       <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
@@ -153,7 +174,7 @@
         <FIELD NAME="changedby" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="false"/>
         <FIELD NAME="notes" TYPE="text" NOTNULL="false" SEQUENCE="false"/>
         <FIELD NAME="scheduledat" TYPE="int" LENGTH="10" NOTNULL="false" SEQUENCE="false"/>
-        <FIELD NAME="schedulestatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="scheduled" SEQUENCE="false" COMMENT="scheduled, rescheduled, completed, cancelled, noshow"/>
+        <FIELD NAME="schedulestatus" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="scheduled" SEQUENCE="false" COMMENT="scheduled, rescheduled, completed, cancelled, noshow, excused"/>
         <FIELD NAME="roundoutcome" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="pending" SEQUENCE="false" COMMENT="pending, cleared, notcleared"/>
         <FIELD NAME="schedulemode" TYPE="char" LENGTH="20" NOTNULL="false" SEQUENCE="false" COMMENT="online, offline, hybrid"/>
         <FIELD NAME="schedulelink" TYPE="char" LENGTH="255" NOTNULL="false" SEQUENCE="false"/>

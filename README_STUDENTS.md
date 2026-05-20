@@ -1,89 +1,96 @@
 # Job Portal Student Guide
 
-This guide is for students using the Moodle Job Portal to apply for jobs and track progress.
+This guide is for students using Moodle Job Portal (`local_jobportal`).
 
-## What You Need
+## Required Capabilities
 
-Your role should have:
+Your role should include:
 
 - `local/jobportal:viewjobs`
 - `local/jobportal:apply`
 
-If you cannot access pages or apply, contact your Moodle admin.
+If access/apply is missing, contact your Moodle admin.
 
-## Navigation Map (Student)
+## Main Pages
 
-Use quick navigation:
+- `All Jobs` (`index.php`)
+- `My Applications` (`myapplications.php`)
+- `My Profile` (`profile.php`)
 
-- **All Jobs**
-- **My Applications**
-- **My Profile**
+## Step 1: Complete Profile (Required)
 
-## Step 1: Complete Your Profile (Required)
-
-Go to **My Profile** and fill:
+Open `My Profile` and update:
 
 - Skills
 - Experience
 - Education
 - Portfolio URL (optional)
-- Resume upload (PDF/DOC/DOCX, max 5 MB)
+- Resume upload
 
 Important:
-- Job application uses resume from profile.
-- If no resume is uploaded, you cannot apply.
-- You are not asked for cover letter/resume during apply flow.
+
+- Apply flow uses resume from profile.
+- You cannot apply without an uploaded resume.
 
 ## Step 2: Browse and Apply
 
-1. Open **All Jobs**.
-2. Search/filter and open a job.
-3. Check role, requirements, deadline, and location.
-4. Click **Apply Now**.
+1. Open `All Jobs`.
+2. Search/filter jobs.
+3. Open a job detail page and review all details.
+4. Click `Apply Now`.
 
-If already applied, the job card/detail shows your current status.
+## Step 3: Track Progress
 
-## Step 3: Track Your Application
+In `My Applications`, you can track:
 
-In **My Applications**, you can see:
+- Job and company details
+- Applied date
+- Shortlist status
+- Stage timeline (upcoming/history)
+- Scheduled round details when shared
 
-- Job details and listed date
-- Shortlist status:
-  - Pending
-  - Shortlisted
-  - Not Shortlisted
-- Post-shortlisting stage (if shortlisted):
-  - Test scheduled/done
-  - Interview scheduled/done
-  - Offer made
-  - Offer accepted / Offer rejected
-- Stage timeline updates
+Some timeline stages may be internal-only and hidden from student view.
 
-Notes:
-- Some stages can be manager-internal and may not appear to students.
+## Offer Highlight
 
-## Resume Review Status
+When your application reaches an offer state, a highlighted banner appears in navigation context.
 
-In **My Profile**, you can view:
+Possible offer states:
 
-- Resume review status
+- `Offer Made`
+- `Offer Accepted`
+- `Offer Rejected`
+
+## Resume Review Visibility
+
+In `My Profile`, you can see:
+
+- Resume status
 - Rating
 - Feedback
 - Review history
 
-If status is **Needs Rework**, update your resume and upload again.
+Reviewer identity is not shown to students.
 
-Privacy:
-- Reviewer identity/details are hidden from students.
+## Why Apply Can Be Blocked
+
+Depending on site policy, applying may be blocked when:
+
+- Resume approval is required and your resume is not approved
+- You reached active application limit
+- You reached weekly application limit
+- You are in not-shortlisted cooldown
+- One application is at offer state (`Offer Made/Accepted/Rejected`)
+- Any test/interview round is marked `No Show`
+- Manager placed a manual apply block
+
+If no-show was a valid exception, manager can mark that round as `Excused`.
 
 ## Troubleshooting
 
-- **Apply button missing**
-  - Deadline may be passed, or you may already have applied, or permission is missing.
-
-- **Cannot apply**
-  - Upload resume in **My Profile** first.
-
-- **Status not changing quickly**
-  - Recruitment updates are manager-driven and may take time.
-
+- `Apply` button missing:
+  - Job may be closed/expired, or you already applied.
+- Cannot apply:
+  - Check profile resume and ask manager/admin to verify policy/lock state.
+- Status not changing:
+  - Recruitment updates are manager-driven.

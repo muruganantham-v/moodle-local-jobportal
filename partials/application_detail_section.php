@@ -42,14 +42,17 @@
         $resumehistory = !empty($app->profileid) && isset($resumehistorybyprofile[(int)$app->profileid]) ?
             $resumehistorybyprofile[(int)$app->profileid] : array();
 
-        $completedstageids = array();
+        $stageeventsbyid = array();
         $stageeventcounts = array();
         $stageroundsbyeventid = array();
         if (!empty($eventsbyapp[$app->id])) {
             foreach ($eventsbyapp[$app->id] as $event) {
                 $eventstageid = (int)$event->stageid;
                 if (isset($poststages[$eventstageid])) {
-                    $completedstageids[$eventstageid] = true;
+                    if (!isset($stageeventsbyid[$eventstageid])) {
+                        $stageeventsbyid[$eventstageid] = array();
+                    }
+                    $stageeventsbyid[$eventstageid][] = $event;
                     if (!isset($stageeventcounts[$eventstageid])) {
                         $stageeventcounts[$eventstageid] = 0;
                     }
@@ -59,9 +62,6 @@
                     }
                 }
             }
-        }
-        if (!empty($currentstageid)) {
-            $completedstageids[$currentstageid] = true;
         }
 
         $roundeventopenoptions = array();
@@ -146,6 +146,8 @@
         }
 
         $phone = !empty($app->phone1) ? $app->phone1 : $app->phone2;
+        $canmanagejobs = has_capability('local/jobportal:managejobs', $context);
+        $applylockinfo = $canmanagejobs ? local_jobportal_get_student_apply_lock_info((int)$app->userid) : null;
         $applicantsectionid = 'jp-applicant-' . (int)$app->id;
         $resumesectionid = 'jp-resume-' . (int)$app->id;
         $recruitsectionid = 'jp-recruit-' . (int)$app->id;
@@ -156,6 +158,11 @@
 
         echo html_writer::tag('h5', fullname($app));
         echo html_writer::tag('h6', s($app->email));
+        echo html_writer::link(
+            new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$app->userid)),
+            get_string('viewstudentprofile', 'local_jobportal'),
+            array('class' => 'btn btn-sm btn-outline-secondary mb-2')
+        );
 
         $statusline = html_writer::tag(
             'span',
@@ -439,13 +446,65 @@
         } else if (empty($activepoststages)) {
             echo html_writer::tag('p', 'ℹ️ ' . get_string('nostagesconfigured', 'local_jobportal'), array('class' => 'alert alert-info'));
         } else {
+            $terminaldecision = in_array($poststageshortname, array('accepted', 'rejected'), true) ? $poststageshortname : '';
             echo html_writer::start_tag('ul', array('class' => 'jp-checklist'));
             foreach ($activepoststages as $stageitem) {
-                $done = isset($completedstageids[(int)$stageitem->id]);
-                $itemclass = $done ? 'jp-checklist-item completed' : 'jp-checklist-item';
-                $icon = $done ? '✅' : '⬜';
+                if ($terminaldecision !== '' &&
+                        in_array($stageitem->shortname, array('accepted', 'rejected'), true) &&
+                        $stageitem->shortname !== $terminaldecision) {
+                    continue;
+                }
+                $stageid = (int)$stageitem->id;
+                $stageevents = !empty($stageeventsbyid[$stageid]) ? $stageeventsbyid[$stageid] : array();
+                $hasevents = !empty($stageevents);
+                $iscurrent = !empty($currentstageid) && $currentstageid === $stageid;
+                $checkliststate = 'notstarted';
+                $isterminaldecision = in_array($stageitem->shortname, array('accepted', 'rejected'), true);
+
+                if ($isterminaldecision) {
+                    if ($iscurrent) {
+                        $checkliststate = 'completed';
+                    }
+                } else if (!empty($stageitem->hasscheduledate)) {
+                    if ($hasevents) {
+                        $lastevent = end($stageevents);
+                        reset($stageevents);
+                        $lasteventstatus = !empty($lastevent->schedulestatus) ?
+                            local_jobportal_normalize_schedule_status($lastevent->schedulestatus) : 'scheduled';
+                        if (in_array($lasteventstatus, array('cancelled', 'noshow'), true)) {
+                            $checkliststate = 'cancelled';
+                        } else if ($lasteventstatus === 'completed') {
+                            $checkliststate = 'completed';
+                        } else {
+                            $checkliststate = 'inprogress';
+                        }
+                    } else if ($iscurrent) {
+                        $checkliststate = 'inprogress';
+                    }
+                } else if ($hasevents || $iscurrent) {
+                    if ($iscurrent && !local_jobportal_is_terminal_post_stage($stageitem->shortname)) {
+                        $checkliststate = 'inprogress';
+                    } else {
+                        $checkliststate = 'completed';
+                    }
+                }
+
+                $stateicon = '⬜';
+                $statelabel = get_string('checkliststate_notstarted', 'local_jobportal');
+                if ($checkliststate === 'inprogress') {
+                    $stateicon = '⏳';
+                    $statelabel = get_string('checkliststate_inprogress', 'local_jobportal');
+                } else if ($checkliststate === 'completed') {
+                    $stateicon = '✅';
+                    $statelabel = get_string('checkliststate_completed', 'local_jobportal');
+                } else if ($checkliststate === 'cancelled') {
+                    $stateicon = '⛔';
+                    $statelabel = get_string('checkliststate_cancelled', 'local_jobportal');
+                }
+
+                $itemclass = 'jp-checklist-item jp-checklist-' . $checkliststate;
                 $stagelabel = format_string($stageitem->displayname);
-                $stageeventcount = !empty($stageeventcounts[(int)$stageitem->id]) ? (int)$stageeventcounts[(int)$stageitem->id] : 0;
+                $stageeventcount = !empty($stageeventcounts[$stageid]) ? (int)$stageeventcounts[$stageid] : 0;
                 if (!empty($stageitem->hasscheduledate) && $stageeventcount > 0) {
                     $stagelabel .= ' (' . get_string('roundscount', 'local_jobportal', $stageeventcount) . ')';
                 }
@@ -453,7 +512,12 @@
                     $stagelabel .= ' (' . get_string('internalstage', 'local_jobportal') . ')';
                 }
                 echo html_writer::tag('li',
-                    html_writer::span($icon, 'jp-checklist-icon') . $stagelabel,
+                    html_writer::div(
+                        html_writer::span($stateicon, 'jp-checklist-icon') .
+                        html_writer::span($stagelabel, 'jp-checklist-stage-label'),
+                        'jp-checklist-main'
+                    ) .
+                    html_writer::span($statelabel, 'jp-checklist-state-pill'),
                     array('class' => $itemclass));
             }
             echo html_writer::end_tag('ul');
@@ -475,69 +539,71 @@
                     $eventtext .= ' (' . get_string('internalstage', 'local_jobportal') . ')';
                 }
                 echo html_writer::tag('div', $eventtext, array('class' => 'mt-1'));
-                if (!empty($event->scheduledat)) {
-                    echo html_writer::div('📅 ' . get_string('scheduledfor', 'local_jobportal') . ': ' .
-                        userdate($event->scheduledat, $datetimeformat), 'text-primary mt-1');
-                }
-                if (!empty($event->schedulestatus)) {
-                    echo html_writer::div(
-                        get_string(
-                            'schedulestatusvalue',
-                            'local_jobportal',
-                            local_jobportal_get_schedule_status_label($event->schedulestatus)
-                        ),
-                        'text-primary mt-1'
-                    );
-                }
-                $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
-                $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
-                if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
-                    echo html_writer::div(
-                        get_string(
-                            'roundoutcomevalue',
-                            'local_jobportal',
-                            local_jobportal_get_round_outcome_label($eventoutcome)
-                        ),
-                        'text-primary mt-1'
-                    );
-                }
-                if (!empty($event->schedulemode)) {
-                    echo html_writer::div(
-                        get_string(
-                            'schedulemodevalue',
-                            'local_jobportal',
-                            local_jobportal_get_schedule_mode_label($event->schedulemode)
-                        ),
-                        'text-primary mt-1'
-                    );
-                }
-                if (!empty($event->scheduleduration)) {
-                    echo html_writer::div(
-                        get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration),
-                        'text-primary mt-1'
-                    );
-                }
-                if (!empty($event->schedulevenue)) {
-                    echo html_writer::div(
-                        get_string('schedulevenuevalue', 'local_jobportal', s($event->schedulevenue)),
-                        'text-primary mt-1'
-                    );
-                }
-                if (!empty($event->schedulelink)) {
-                    $rawlink = trim((string)$event->schedulelink);
-                    if (preg_match('#^https?://#i', $rawlink)) {
-                        $linkhtml = html_writer::link(
-                            $rawlink,
-                            s($rawlink),
-                            array('target' => '_blank', 'rel' => 'noopener')
-                        );
-                    } else {
-                        $linkhtml = s($rawlink);
+                if (!empty($event->hasscheduledate)) {
+                    if (!empty($event->scheduledat)) {
+                        echo html_writer::div('📅 ' . get_string('scheduledfor', 'local_jobportal') . ': ' .
+                            userdate($event->scheduledat, $datetimeformat), 'text-primary mt-1');
                     }
-                    echo html_writer::div(
-                        get_string('schedulelink', 'local_jobportal') . ': ' . $linkhtml,
-                        'text-primary mt-1'
-                    );
+                    if (!empty($event->schedulestatus)) {
+                        echo html_writer::div(
+                            get_string(
+                                'schedulestatusvalue',
+                                'local_jobportal',
+                                local_jobportal_get_schedule_status_label($event->schedulestatus)
+                            ),
+                            'text-primary mt-1'
+                        );
+                    }
+                    $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
+                    $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
+                    if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
+                        echo html_writer::div(
+                            get_string(
+                                'roundoutcomevalue',
+                                'local_jobportal',
+                                local_jobportal_get_round_outcome_label($eventoutcome)
+                            ),
+                            'text-primary mt-1'
+                        );
+                    }
+                    if (!empty($event->schedulemode)) {
+                        echo html_writer::div(
+                            get_string(
+                                'schedulemodevalue',
+                                'local_jobportal',
+                                local_jobportal_get_schedule_mode_label($event->schedulemode)
+                            ),
+                            'text-primary mt-1'
+                        );
+                    }
+                    if (!empty($event->scheduleduration)) {
+                        echo html_writer::div(
+                            get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration),
+                            'text-primary mt-1'
+                        );
+                    }
+                    if (!empty($event->schedulevenue)) {
+                        echo html_writer::div(
+                            get_string('schedulevenuevalue', 'local_jobportal', s($event->schedulevenue)),
+                            'text-primary mt-1'
+                        );
+                    }
+                    if (!empty($event->schedulelink)) {
+                        $rawlink = trim((string)$event->schedulelink);
+                        if (preg_match('#^https?://#i', $rawlink)) {
+                            $linkhtml = html_writer::link(
+                                $rawlink,
+                                s($rawlink),
+                                array('target' => '_blank', 'rel' => 'noopener')
+                            );
+                        } else {
+                            $linkhtml = s($rawlink);
+                        }
+                        echo html_writer::div(
+                            get_string('schedulelink', 'local_jobportal') . ': ' . $linkhtml,
+                            'text-primary mt-1'
+                        );
+                    }
                 }
                 if (!empty($event->notes)) {
                     echo html_writer::div(s($event->notes), 'text-muted mt-1');
@@ -546,6 +612,16 @@
                 echo html_writer::end_div();
             }
             echo html_writer::end_tag('div');
+        }
+
+        $collapseshortlistform = ($shortliststatus === 'shortlisted' && !empty($poststageshortname));
+        if ($collapseshortlistform) {
+            $summary = get_string('shortliststatus', 'local_jobportal') . ': ' . s($shortlistlabel);
+            if (!empty($poststagename) && $poststagename !== get_string('poststagenotset', 'local_jobportal')) {
+                $summary .= ' | ' . get_string('postshortliststage', 'local_jobportal') . ': ' . s($poststagename);
+            }
+            echo html_writer::start_tag('details', array('class' => 'jp-collapsible-history mb-3'));
+            echo html_writer::tag('summary', $summary, array('class' => 'jp-collapsible-summary'));
         }
 
         echo html_writer::start_div('jp-form-card');
@@ -574,10 +650,18 @@
         echo html_writer::tag('button', get_string('updateshortliststatus', 'local_jobportal'), array('type' => 'submit', 'class' => 'jp-btn-gradient'));
         echo html_writer::end_tag('form');
         echo html_writer::end_div();
+        if ($collapseshortlistform) {
+            echo html_writer::end_tag('details');
+        }
 
+        $collapseterminalactions = ($shortliststatus === 'shortlisted' && $currentstageisterminal);
         if ($shortliststatus === 'shortlisted' && $currentstageisterminal) {
             echo html_writer::tag('p', 'ℹ️ ' . get_string('reopenstagehelp', 'local_jobportal'), array('class' => 'alert alert-warning'));
             if (!empty($reopentransitionoptions)) {
+                if ($collapseterminalactions) {
+                    echo html_writer::start_tag('details', array('class' => 'jp-collapsible-history mb-3'));
+                    echo html_writer::tag('summary', get_string('reopenstage', 'local_jobportal'), array('class' => 'jp-collapsible-summary'));
+                }
                 echo html_writer::start_div('jp-form-card');
                 echo html_writer::start_tag('form', array('method' => 'post', 'action' => $pageactionurl));
                 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
@@ -674,6 +758,9 @@
                 echo html_writer::tag('button', get_string('reopenapplication', 'local_jobportal'), array('type' => 'submit', 'class' => 'jp-btn-gradient'));
                 echo html_writer::end_tag('form');
                 echo html_writer::end_div();
+                if ($collapseterminalactions) {
+                    echo html_writer::end_tag('details');
+                }
             }
         } else if ($shortliststatus === 'shortlisted' && !empty($transitionoptions)) {
             echo html_writer::start_div('jp-form-card');
@@ -780,6 +867,10 @@
         }
 
         if ($shortliststatus === 'shortlisted' && (!empty($roundeventopenoptions) || !empty($roundeventclosedoptions))) {
+            if ($collapseterminalactions) {
+                echo html_writer::start_tag('details', array('class' => 'jp-collapsible-history mb-3'));
+                echo html_writer::tag('summary', get_string('updateroundevent', 'local_jobportal'), array('class' => 'jp-collapsible-summary'));
+            }
             echo html_writer::start_div('jp-form-card');
             echo html_writer::start_tag('form', array('method' => 'post', 'action' => $pageactionurl));
             echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
@@ -901,8 +992,169 @@
             echo html_writer::tag('button', get_string('updateroundevent', 'local_jobportal'), array('type' => 'submit', 'class' => 'jp-btn-gradient'));
             echo html_writer::end_tag('form');
             echo html_writer::end_div();
+            if ($collapseterminalactions) {
+                echo html_writer::end_tag('details');
+            }
         } else if ($shortliststatus === 'shortlisted') {
             echo html_writer::tag('p', 'ℹ️ ' . get_string('noroundeventsavailable', 'local_jobportal'), array('class' => 'alert alert-info'));
+        }
+
+        if ($canmanagejobs && $applylockinfo) {
+            $statuslabel = get_string('applylockstatus_open', 'local_jobportal');
+            $statusclass = 'badge badge-success';
+            if (!empty($applylockinfo->manualblockactive)) {
+                $statuslabel = get_string('applylockstatus_manualblock', 'local_jobportal');
+                $statusclass = 'badge badge-danger';
+            } else if (!empty($applylockinfo->locked)) {
+                $statuslabel = get_string('applylockstatus_locked', 'local_jobportal');
+                $statusclass = 'badge badge-danger';
+            } else if (!empty($applylockinfo->overrideactive)) {
+                $statuslabel = get_string('applylockstatus_override', 'local_jobportal');
+                $statusclass = 'badge badge-warning';
+            }
+
+            $triggerinfo = '';
+            if (!empty($applylockinfo->manualblockactive)) {
+                $triggerinfo = get_string('applylocktrigger_manualblock', 'local_jobportal');
+            } else if (!empty($applylockinfo->lockreason) && $applylockinfo->lockreason === 'noshow') {
+                $triggerinfo = get_string(
+                    'applylocktrigger_noshow',
+                    'local_jobportal',
+                    (object)array('jobid' => (int)$applylockinfo->triggerjobid)
+                );
+            } else if (!empty($applylockinfo->triggerstatus)) {
+                $triggerinfo = get_string(
+                    'applylocktrigger',
+                    'local_jobportal',
+                    (object)array(
+                        'stage' => $applylockinfo->triggerstatuslabel,
+                        'jobid' => (int)$applylockinfo->triggerjobid,
+                    )
+                );
+            }
+
+            $overrideenabled = !empty($applylockinfo->overrideactive);
+            $overrideexpiresvalue = ($overrideenabled && !empty($applylockinfo->overrideexpiresat) && $applylockinfo->overrideexpiresat > 0) ?
+                date('Y-m-d\TH:i', (int)$applylockinfo->overrideexpiresat) : '';
+            $overridereasonvalue = !empty($applylockinfo->overridereason) ? $applylockinfo->overridereason : '';
+            $manualblockenabled = !empty($applylockinfo->manualblockactive);
+            $manualblockexpiresvalue = ($manualblockenabled && !empty($applylockinfo->manualblockexpiresat) && $applylockinfo->manualblockexpiresat > 0) ?
+                date('Y-m-d\TH:i', (int)$applylockinfo->manualblockexpiresat) : '';
+            $manualblockreasonvalue = !empty($applylockinfo->manualblockreason) ? $applylockinfo->manualblockreason : '';
+
+            echo html_writer::start_div('jp-form-card mt-3');
+            echo html_writer::tag('label', get_string('applicationeligibilityoverride', 'local_jobportal'), array('class' => 'jp-form-title'));
+            echo html_writer::div(get_string('applicationeligibilityhelp', 'local_jobportal'), 'text-muted small mb-2');
+            echo html_writer::div(html_writer::tag('span', $statuslabel, array('class' => $statusclass)), 'mb-2');
+            if ($triggerinfo !== '') {
+                echo html_writer::div($triggerinfo, 'text-muted small mb-2');
+            }
+            if (!empty($applylockinfo->manualblockactive) && !empty($applylockinfo->manualblockreason)) {
+                echo html_writer::div(s($applylockinfo->manualblockreason), 'text-muted small mb-2');
+            }
+
+            echo html_writer::start_tag('form', array('method' => 'post', 'action' => $pageactionurl));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'page', 'value' => $page));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'showapp', 'value' => $showapp));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'standalone', 'value' => $standalonevalue));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'appid', 'value' => $app->id));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => 'updateapplyoverride'));
+            echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+
+            echo html_writer::start_div('form-check mb-3');
+            echo html_writer::checkbox(
+                'enableoverride',
+                1,
+                $overrideenabled,
+                get_string('enableapplyoverride', 'local_jobportal'),
+                array('class' => 'form-check-input', 'id' => 'jp-enable-override-' . (int)$app->id)
+            );
+            echo html_writer::end_div();
+
+            echo html_writer::start_div('jp-inline-row mb-3');
+            echo html_writer::start_div('jp-inline-col-date');
+            echo html_writer::tag(
+                'label',
+                get_string('applyoverrideexpires', 'local_jobportal'),
+                array('class' => 'small text-muted d-block')
+            );
+            echo html_writer::empty_tag('input', array(
+                'type' => 'datetime-local',
+                'name' => 'overrideexpires',
+                'value' => $overrideexpiresvalue,
+                'class' => 'form-control',
+            ));
+            echo html_writer::end_div();
+            echo html_writer::end_div();
+
+            echo html_writer::start_div('jp-inline-row mb-3');
+            echo html_writer::start_div('jp-inline-col-note');
+            echo html_writer::tag(
+                'label',
+                get_string('applyoverridereason', 'local_jobportal'),
+                array('class' => 'small text-muted d-block')
+            );
+            echo html_writer::tag('textarea', s($overridereasonvalue), array(
+                'name' => 'overridereason',
+                'rows' => 2,
+                'class' => 'form-control',
+                'placeholder' => get_string('applyoverridereasonplaceholder', 'local_jobportal'),
+            ));
+            echo html_writer::end_div();
+            echo html_writer::end_div();
+
+            echo html_writer::empty_tag('hr', array('class' => 'my-3'));
+
+            echo html_writer::start_div('form-check mb-3');
+            echo html_writer::checkbox(
+                'enablemanualblock',
+                1,
+                $manualblockenabled,
+                get_string('enableapplymanualblock', 'local_jobportal'),
+                array('class' => 'form-check-input', 'id' => 'jp-enable-manual-block-' . (int)$app->id)
+            );
+            echo html_writer::end_div();
+
+            echo html_writer::start_div('jp-inline-row mb-3');
+            echo html_writer::start_div('jp-inline-col-date');
+            echo html_writer::tag(
+                'label',
+                get_string('applymanualblockexpires', 'local_jobportal'),
+                array('class' => 'small text-muted d-block')
+            );
+            echo html_writer::empty_tag('input', array(
+                'type' => 'datetime-local',
+                'name' => 'manualblockexpires',
+                'value' => $manualblockexpiresvalue,
+                'class' => 'form-control',
+            ));
+            echo html_writer::end_div();
+            echo html_writer::end_div();
+
+            echo html_writer::start_div('jp-inline-row mb-3');
+            echo html_writer::start_div('jp-inline-col-note');
+            echo html_writer::tag(
+                'label',
+                get_string('applymanualblockreason', 'local_jobportal'),
+                array('class' => 'small text-muted d-block')
+            );
+            echo html_writer::tag('textarea', s($manualblockreasonvalue), array(
+                'name' => 'manualblockreason',
+                'rows' => 2,
+                'class' => 'form-control',
+                'placeholder' => get_string('applymanualblockreasonplaceholder', 'local_jobportal'),
+            ));
+            echo html_writer::end_div();
+            echo html_writer::end_div();
+
+            echo html_writer::tag(
+                'button',
+                get_string('saveapplyoverride', 'local_jobportal'),
+                array('type' => 'submit', 'class' => 'jp-btn-gradient')
+            );
+            echo html_writer::end_tag('form');
+            echo html_writer::end_div();
         }
         echo html_writer::end_tag('div');
         echo html_writer::end_tag('div');

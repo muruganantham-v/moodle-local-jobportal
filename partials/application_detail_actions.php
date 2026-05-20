@@ -20,6 +20,52 @@ if ($action && $appid && confirm_sesskey()) {
         redirect($baseurl, get_string('noteadded', 'local_jobportal'), null, \core\output\notification::NOTIFY_SUCCESS);
     }
 
+    if ($action === 'updateapplyoverride') {
+        require_capability('local/jobportal:managejobs', $context);
+
+        $enableoverride = optional_param('enableoverride', 0, PARAM_BOOL) ? 1 : 0;
+        $overridereason = trim(optional_param('overridereason', '', PARAM_TEXT));
+        $overrideexpiresraw = trim(optional_param('overrideexpires', '', PARAM_RAW_TRIMMED));
+        $overrideexpiresat = null;
+        $enablemanualblock = optional_param('enablemanualblock', 0, PARAM_BOOL) ? 1 : 0;
+        $manualblockreason = trim(optional_param('manualblockreason', '', PARAM_TEXT));
+        $manualblockexpiresraw = trim(optional_param('manualblockexpires', '', PARAM_RAW_TRIMMED));
+        $manualblockexpiresat = null;
+
+        if ($enableoverride && $overrideexpiresraw !== '') {
+            $overrideexpiresat = strtotime($overrideexpiresraw);
+            if (empty($overrideexpiresat)) {
+                redirect($baseurl, get_string('error:overrideexpiresinvalid', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
+            }
+            if ((int)$overrideexpiresat <= time()) {
+                redirect($baseurl, get_string('error:overrideexpirespast', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
+            }
+        }
+
+        if ($enablemanualblock && $manualblockexpiresraw !== '') {
+            $manualblockexpiresat = strtotime($manualblockexpiresraw);
+            if (empty($manualblockexpiresat)) {
+                redirect($baseurl, get_string('error:blockexpiresinvalid', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
+            }
+            if ((int)$manualblockexpiresat <= time()) {
+                redirect($baseurl, get_string('error:blockexpirespast', 'local_jobportal'), null, \core\output\notification::NOTIFY_ERROR);
+            }
+        }
+
+        local_jobportal_save_student_apply_override(
+            (int)$application->userid,
+            $enableoverride,
+            $overridereason,
+            $overrideexpiresat,
+            (int)$USER->id,
+            $enablemanualblock,
+            $manualblockreason,
+            $manualblockexpiresat
+        );
+
+        redirect($baseurl, get_string('applyeligibilityupdatedmsg', 'local_jobportal'), null, \core\output\notification::NOTIFY_SUCCESS);
+    }
+
     if ($action === 'changeshortlist') {
         $shortliststatus = optional_param('shortliststatus', '', PARAM_ALPHANUMEXT);
         if (!isset($shortlistoptions[$shortliststatus])) {

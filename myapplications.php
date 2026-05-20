@@ -32,6 +32,7 @@ echo local_jobportal_render_navigation($context, 'myapplications');
 
 // Get user's applications
 $totalapplications = (int)$DB->count_records('local_jobportal_applications', array('userid' => $USER->id));
+$offerhighlight = local_jobportal_get_student_offer_highlight((int)$USER->id);
 $sql = "SELECT a.*, j.title, j.company, j.location, j.timecreated AS joblistedon
         FROM {local_jobportal_applications} a
         JOIN {local_jobportal_jobs} j ON a.jobid = j.id
@@ -60,6 +61,34 @@ if (!empty($applications)) {
         }
         $eventsbyapp[$event->applicationid][] = $event;
     }
+}
+
+if (!empty($offerhighlight->hasoffer)) {
+    $statusclass = preg_replace('/[^a-z0-9_-]/i', '', (string)$offerhighlight->status);
+    $toneclass = 'jp-offer-tone-' . $statusclass;
+    $emotionhtml = local_jobportal_get_offer_status_emotion_html(
+        $statusclass,
+        (string)$offerhighlight->jobtitle,
+        (string)$offerhighlight->company
+    );
+    $jobcompany = trim(format_string($offerhighlight->company));
+    $jobtitle = format_string($offerhighlight->jobtitle);
+    $updated = !empty($offerhighlight->timemodified) ? userdate((int)$offerhighlight->timemodified, $datetimeformat) : '-';
+    $statusbadge = html_writer::tag('span', $offerhighlight->statuslabel, array(
+        'class' => 'jp-offer-status-inline jp-offer-status-inline--' . $statusclass,
+    ));
+
+    echo html_writer::start_div('jp-offer-banner jp-offer-global-banner ' . $toneclass . ' mb-3');
+    echo html_writer::start_div('jp-offer-banner-main');
+    echo html_writer::start_div('jp-offer-banner-left');
+    echo html_writer::div($jobtitle . ($jobcompany !== '' ? ' | ' . $jobcompany : '') . ' ' . $statusbadge, 'jp-offer-banner-job');
+    if ($emotionhtml !== '') {
+        echo html_writer::div($emotionhtml, 'jp-offer-banner-emotion jp-offer-banner-emotion--' . $statusclass);
+    }
+    echo html_writer::div(get_string('offerhighlightupdated', 'local_jobportal', $updated), 'jp-offer-banner-meta');
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+    echo html_writer::end_div();
 }
 
 if (empty($applications)) {
@@ -112,6 +141,9 @@ if (empty($applications)) {
                     break;
             }
         }
+        $offerstage = ($visiblestage && local_jobportal_is_offer_stage_shortname($visiblestage->shortname)) ?
+            $visiblestage->shortname : '';
+        $offerstatuslabel = $offerstage !== '' ? local_jobportal_get_apply_lock_stage_label($offerstage) : '';
 
         $joburl = new moodle_url('/local/jobportal/view.php', array('id' => $app->jobid));
         $poststagelabel = ($shortliststatus === 'shortlisted') ?
@@ -125,6 +157,13 @@ if (empty($applications)) {
         echo html_writer::div(format_string($app->company), 'jp-myapp-company');
         echo html_writer::end_div();
         echo html_writer::start_div('jp-myapp-status-wrap');
+        if ($offerstage !== '') {
+            echo html_writer::div(
+                html_writer::tag('span', get_string('offerstatus', 'local_jobportal'), array('class' => 'jp-myapp-status-label')) .
+                html_writer::tag('span', $offerstatuslabel, array('class' => 'jp-offer-chip jp-offer-chip--' . $offerstage)),
+                'jp-myapp-status-row jp-myapp-status-row-offer'
+            );
+        }
         echo html_writer::div(
             html_writer::tag('span', get_string('shortliststatus', 'local_jobportal'), array('class' => 'jp-myapp-status-label')) .
             html_writer::tag('span', $shortlistlabel, array('class' => $shortlistclass . ' jp-myapp-badge')),
@@ -229,52 +268,54 @@ if (empty($applications)) {
 
             $renderevent = function($event) use ($datetimeformat, $stageroundsbyeventid) {
                 $eventmeta = userdate($event->timecreated, $datetimeformat);
-                if (!empty($event->scheduledat)) {
-                    $eventmeta .= ' | ' . get_string('scheduledfor', 'local_jobportal') . ': ' .
-                        userdate($event->scheduledat, $datetimeformat);
-                }
-                if (!empty($event->schedulestatus)) {
-                    $eventmeta .= ' | ' . get_string(
-                        'schedulestatusvalue',
-                        'local_jobportal',
-                        local_jobportal_get_schedule_status_label($event->schedulestatus)
-                    );
-                }
-                $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
-                $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
-                if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
-                    $eventmeta .= ' | ' . get_string(
-                        'roundoutcomevalue',
-                        'local_jobportal',
-                        local_jobportal_get_round_outcome_label($eventoutcome)
-                    );
-                }
-                if (!empty($event->schedulemode)) {
-                    $eventmeta .= ' | ' . get_string(
-                        'schedulemodevalue',
-                        'local_jobportal',
-                        local_jobportal_get_schedule_mode_label($event->schedulemode)
-                    );
-                }
-                if (!empty($event->scheduleduration)) {
-                    $eventmeta .= ' | ' . get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration);
-                }
-                if (!empty($event->schedulevenue)) {
-                    $eventmeta .= ' | ' . get_string('schedulevenuevalue', 'local_jobportal', s(trim((string)$event->schedulevenue)));
-                }
                 $eventlink = '';
-                if (!empty($event->schedulelink)) {
-                    $rawlink = trim((string)$event->schedulelink);
-                    if (preg_match('#^https?://#i', $rawlink)) {
-                        $eventlink = html_writer::div(
-                            html_writer::link($rawlink, get_string('schedulelink', 'local_jobportal'), array('target' => '_blank', 'rel' => 'noopener')),
-                            'jp-myapp-timeline-meta'
+                if (!empty($event->hasscheduledate)) {
+                    if (!empty($event->scheduledat)) {
+                        $eventmeta .= ' | ' . get_string('scheduledfor', 'local_jobportal') . ': ' .
+                            userdate($event->scheduledat, $datetimeformat);
+                    }
+                    if (!empty($event->schedulestatus)) {
+                        $eventmeta .= ' | ' . get_string(
+                            'schedulestatusvalue',
+                            'local_jobportal',
+                            local_jobportal_get_schedule_status_label($event->schedulestatus)
                         );
-                    } else {
-                        $eventlink = html_writer::div(
-                            get_string('schedulelinkvalue', 'local_jobportal', s($rawlink)),
-                            'jp-myapp-timeline-meta'
+                    }
+                    $eventoutcome = !empty($event->roundoutcome) ? local_jobportal_normalize_round_outcome($event->roundoutcome) : 'pending';
+                    $eventstatus = !empty($event->schedulestatus) ? local_jobportal_normalize_schedule_status($event->schedulestatus) : 'scheduled';
+                    if ($eventstatus === 'completed' || $eventoutcome !== 'pending') {
+                        $eventmeta .= ' | ' . get_string(
+                            'roundoutcomevalue',
+                            'local_jobportal',
+                            local_jobportal_get_round_outcome_label($eventoutcome)
                         );
+                    }
+                    if (!empty($event->schedulemode)) {
+                        $eventmeta .= ' | ' . get_string(
+                            'schedulemodevalue',
+                            'local_jobportal',
+                            local_jobportal_get_schedule_mode_label($event->schedulemode)
+                        );
+                    }
+                    if (!empty($event->scheduleduration)) {
+                        $eventmeta .= ' | ' . get_string('scheduledurationvalue', 'local_jobportal', (int)$event->scheduleduration);
+                    }
+                    if (!empty($event->schedulevenue)) {
+                        $eventmeta .= ' | ' . get_string('schedulevenuevalue', 'local_jobportal', s(trim((string)$event->schedulevenue)));
+                    }
+                    if (!empty($event->schedulelink)) {
+                        $rawlink = trim((string)$event->schedulelink);
+                        if (preg_match('#^https?://#i', $rawlink)) {
+                            $eventlink = html_writer::div(
+                                html_writer::link($rawlink, get_string('schedulelink', 'local_jobportal'), array('target' => '_blank', 'rel' => 'noopener')),
+                                'jp-myapp-timeline-meta'
+                            );
+                        } else {
+                            $eventlink = html_writer::div(
+                                get_string('schedulelinkvalue', 'local_jobportal', s($rawlink)),
+                                'jp-myapp-timeline-meta'
+                            );
+                        }
                     }
                 }
                 $stagename = format_string($event->displayname);
