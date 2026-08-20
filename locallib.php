@@ -2583,6 +2583,34 @@ function local_jobportal_require_styles() {
 }
 
 /**
+ * Render standard bulletproof filter toggle button.
+ *
+ * @param string $targetid Target HTML element ID (without #)
+ * @param string $storagekey LocalStorage key
+ * @return string HTML button
+ */
+function local_jobportal_render_filter_toggle_button($targetid, $storagekey) {
+    $hidetext = '👁️ ' . get_string('hidefilters', 'local_jobportal');
+    $showtext = '👁️ ' . get_string('showfilters', 'local_jobportal');
+    $onclick = "var t=document.getElementById('" . s($targetid) . "');if(t){var h=t.style.display==='none'||t.classList.contains('jp-collapsed');t.style.display=h?'':'none';if(h){t.classList.remove('jp-collapsed');this.innerHTML='" . s($hidetext) . "';this.classList.remove('btn-primary');this.classList.add('btn-outline-secondary');}else{t.classList.add('jp-collapsed');this.innerHTML='" . s($showtext) . "';this.classList.add('btn-primary');this.classList.remove('btn-outline-secondary');}try{localStorage.setItem('" . s($storagekey) . "',h?'0':'1');}catch(e){}}return false;";
+
+    return html_writer::tag(
+        'button',
+        $hidetext,
+        array(
+            'type' => 'button',
+            'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+            'data-target' => '#' . $targetid,
+            'data-storage-key' => $storagekey,
+            'data-show-text' => $showtext,
+            'data-hide-text' => $hidetext,
+            'aria-expanded' => 'true',
+            'onclick' => $onclick,
+        )
+    );
+}
+
+/**
  * Build manager "All Jobs" URL using saved index preferences.
  *
  * @param int $userid

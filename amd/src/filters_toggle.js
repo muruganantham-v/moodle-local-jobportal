@@ -1,21 +1,50 @@
 define([], function() {
-    var eachNode = function(nodes, callback) {
-        for (var i = 0; i < nodes.length; i++) {
-            callback(nodes[i], i);
-        }
-    };
-
-    var initToggleButtons = function() {
+    var restoreSavedFilterState = function() {
         var buttons = document.querySelectorAll('.jp-toggle-filters-btn');
         if (!buttons || !buttons.length) {
             return;
         }
 
-        eachNode(buttons, function(button) {
-            if (button.dataset.jpToggleInitialized === 'true') {
+        for (var i = 0; i < buttons.length; i++) {
+            var button = buttons[i];
+            var targetSelector = button.getAttribute('data-target');
+            if (!targetSelector) {
+                continue;
+            }
+            var target = document.querySelector(targetSelector);
+            if (!target) {
+                continue;
+            }
+
+            var storageKey = button.getAttribute('data-storage-key');
+            var showText = button.getAttribute('data-show-text') || '👁️ Show Filters';
+
+            if (storageKey) {
+                try {
+                    if (localStorage.getItem(storageKey) === '1') {
+                        target.style.display = 'none';
+                        target.classList.add('jp-collapsed');
+                        button.innerHTML = showText;
+                        button.setAttribute('aria-expanded', 'false');
+                        button.classList.add('btn-primary');
+                        button.classList.remove('btn-outline-secondary');
+                    }
+                } catch (e) {}
+            }
+        }
+    };
+
+    var bindGlobalToggle = function() {
+        if (window.__jpFiltersToggleBound) {
+            return;
+        }
+        window.__jpFiltersToggleBound = true;
+
+        document.addEventListener('click', function(e) {
+            var button = e.target.closest ? e.target.closest('.jp-toggle-filters-btn') : null;
+            if (!button) {
                 return;
             }
-            button.dataset.jpToggleInitialized = 'true';
 
             var targetSelector = button.getAttribute('data-target');
             if (!targetSelector) {
@@ -30,62 +59,38 @@ define([], function() {
             var showText = button.getAttribute('data-show-text') || '👁️ Show Filters';
             var hideText = button.getAttribute('data-hide-text') || '👁️ Hide Filters';
 
-            // Check if there are active filters in this card
-            var card = button.closest('.jp-filter-card');
-            var hasActiveFilters = card && card.querySelector('.jp-filter-active-count');
-
-            // Restore initial state from localStorage if present
-            if (storageKey) {
-                try {
-                    var isHidden = localStorage.getItem(storageKey) === '1';
-                    if (isHidden) {
-                        target.classList.add('jp-collapsed');
-                        button.innerHTML = showText;
-                        button.setAttribute('aria-expanded', 'false');
-                        button.classList.add('btn-primary');
-                        button.classList.remove('btn-outline-secondary');
-                    }
-                } catch (e) {
-                    // LocalStorage unavailable, skip
+            var isCollapsed = target.style.display === 'none' || target.classList.contains('jp-collapsed');
+            if (isCollapsed) {
+                target.style.display = '';
+                target.classList.remove('jp-collapsed');
+                button.innerHTML = hideText;
+                button.setAttribute('aria-expanded', 'true');
+                button.classList.remove('btn-primary');
+                button.classList.add('btn-outline-secondary');
+                if (storageKey) {
+                    try { localStorage.setItem(storageKey, '0'); } catch (err) {}
+                }
+            } else {
+                target.style.display = 'none';
+                target.classList.add('jp-collapsed');
+                button.innerHTML = showText;
+                button.setAttribute('aria-expanded', 'false');
+                button.classList.add('btn-primary');
+                button.classList.remove('btn-outline-secondary');
+                if (storageKey) {
+                    try { localStorage.setItem(storageKey, '1'); } catch (err) {}
                 }
             }
-
-            button.addEventListener('click', function(e) {
-                e.preventDefault();
-                var isCollapsed = target.classList.contains('jp-collapsed');
-                if (isCollapsed) {
-                    target.classList.remove('jp-collapsed');
-                    button.innerHTML = hideText;
-                    button.setAttribute('aria-expanded', 'true');
-                    button.classList.remove('btn-primary');
-                    button.classList.add('btn-outline-secondary');
-                    if (storageKey) {
-                        try {
-                            localStorage.setItem(storageKey, '0');
-                        } catch (err) {}
-                    }
-                } else {
-                    target.classList.add('jp-collapsed');
-                    button.innerHTML = showText;
-                    button.setAttribute('aria-expanded', 'false');
-                    button.classList.add('btn-primary');
-                    button.classList.remove('btn-outline-secondary');
-                    if (storageKey) {
-                        try {
-                            localStorage.setItem(storageKey, '1');
-                        } catch (err) {}
-                    }
-                }
-            });
         });
     };
 
     return {
         init: function() {
+            bindGlobalToggle();
             if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', initToggleButtons);
+                document.addEventListener('DOMContentLoaded', restoreSavedFilterState);
             } else {
-                initToggleButtons();
+                restoreSavedFilterState();
             }
         }
     };

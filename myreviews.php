@@ -94,19 +94,7 @@ echo html_writer::start_div('card mb-3 jp-filter-card', array('id' => 'jp-myrevi
 echo html_writer::start_div('card-body');
 echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
 echo html_writer::tag('h4', get_string('myresumereviews', 'local_jobportal'), array('class' => 'card-title mb-0'));
-echo html_writer::tag(
-    'button',
-    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-    array(
-        'type' => 'button',
-        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
-        'data-target' => '#jp-myreviews-filter-content-wrap',
-        'data-storage-key' => 'jp_myreviews_filters_hidden',
-        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
-        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-        'aria-expanded' => 'true',
-    )
-);
+echo local_jobportal_render_filter_toggle_button('jp-myreviews-filter-content-wrap', 'jp_myreviews_filters_hidden');
 echo html_writer::end_div();
 
 echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-myreviews-filter-content-wrap'));

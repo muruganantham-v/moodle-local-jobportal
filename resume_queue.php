@@ -137,19 +137,7 @@ if ($activeresumefilterscount > 0) {
     echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', $activeresumefilterscount), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
 }
 echo html_writer::end_div();
-echo html_writer::tag(
-    'button',
-    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-    array(
-        'type' => 'button',
-        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
-        'data-target' => '#jp-resume-filter-content-wrap',
-        'data-storage-key' => 'jp_resume_filters_hidden',
-        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
-        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-        'aria-expanded' => 'true',
-    )
-);
+echo local_jobportal_render_filter_toggle_button('jp-resume-filter-content-wrap', 'jp_resume_filters_hidden');
 echo html_writer::end_div();
 
 echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-resume-filter-content-wrap'));

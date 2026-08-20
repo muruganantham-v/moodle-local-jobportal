@@ -436,19 +436,7 @@ if ($activejobsdashfilterscount > 0) {
     echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', $activejobsdashfilterscount), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
 }
 echo html_writer::end_div();
-echo html_writer::tag(
-    'button',
-    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-    array(
-        'type' => 'button',
-        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
-        'data-target' => '#jp-jobsdash-filter-content-wrap',
-        'data-storage-key' => 'jp_jobsdash_filters_hidden',
-        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
-        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
-        'aria-expanded' => 'true',
-    )
-);
+echo local_jobportal_render_filter_toggle_button('jp-jobsdash-filter-content-wrap', 'jp_jobsdash_filters_hidden');
 echo html_writer::end_div();
 
 echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-jobsdash-filter-content-wrap'));
