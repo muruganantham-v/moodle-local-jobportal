@@ -109,12 +109,45 @@ define([], function() {
         });
     };
 
+    var bindFilterToggle = function() {
+        var button = document.querySelector('#jp-jobs-filter-card .jp-toggle-filters-btn');
+        var wrap = byId('jp-jobs-filter-content-wrap');
+        if (!button || !wrap) {
+            return;
+        }
+
+        try {
+            if (localStorage.getItem('jp_jobs_filters_hidden') === '1') {
+                wrap.style.display = 'none';
+                wrap.classList.add('jp-collapsed');
+                button.innerHTML = button.getAttribute('data-show-text') || '👁️ Show Filters';
+                button.classList.add('btn-primary');
+                button.classList.remove('btn-outline-secondary');
+                button.setAttribute('aria-expanded', 'false');
+            }
+        } catch (e) {}
+
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (window.jpToggleFilters) {
+                window.jpToggleFilters(
+                    'jp-jobs-filter-content-wrap',
+                    button,
+                    'jp_jobs_filters_hidden',
+                    button.getAttribute('data-show-text'),
+                    button.getAttribute('data-hide-text')
+                );
+            }
+        });
+    };
+
     return {
         init: function() {
             bindSelectAll();
             bindPresetReset();
             bindConditionalFilters();
             bindColumnSearch();
+            bindFilterToggle();
         }
     };
 });

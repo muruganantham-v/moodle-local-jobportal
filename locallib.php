@@ -2580,6 +2580,73 @@ function local_jobportal_require_styles() {
 
     $PAGE->requires->css(new moodle_url('/local/jobportal/styles.css'));
     $PAGE->requires->js_call_amd('local_jobportal/filters_toggle', 'init');
+
+    $jscode = "
+window.jpToggleFilters = function(targetId, btn, storageKey, showText, hideText) {
+    var t = document.getElementById(targetId);
+    if (!t) return false;
+    var isHidden = (t.style.display === 'none' || t.classList.contains('jp-collapsed'));
+    if (isHidden) {
+        t.style.display = 'block';
+        t.classList.remove('jp-collapsed');
+        if (btn) {
+            btn.innerHTML = hideText || '👁️ Hide Filters';
+            btn.classList.remove('btn-primary');
+            btn.classList.add('btn-outline-secondary');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        if (storageKey) {
+            try { localStorage.setItem(storageKey, '0'); } catch(e) {}
+        }
+    } else {
+        t.style.display = 'none';
+        t.classList.add('jp-collapsed');
+        if (btn) {
+            btn.innerHTML = showText || '👁️ Show Filters';
+            btn.classList.add('btn-primary');
+            btn.classList.remove('btn-outline-secondary');
+            btn.setAttribute('aria-expanded', 'false');
+        }
+        if (storageKey) {
+            try { localStorage.setItem(storageKey, '1'); } catch(e) {}
+        }
+    }
+    return false;
+};
+
+(function() {
+    function restoreJpFilters() {
+        var buttons = document.querySelectorAll('.jp-toggle-filters-btn');
+        for (var i = 0; i < buttons.length; i++) {
+            var btn = buttons[i];
+            var targetId = (btn.getAttribute('data-target') || '').replace('#', '');
+            var storageKey = btn.getAttribute('data-storage-key');
+            var showText = btn.getAttribute('data-show-text') || '👁️ Show Filters';
+            if (targetId && storageKey) {
+                try {
+                    if (localStorage.getItem(storageKey) === '1') {
+                        var t = document.getElementById(targetId);
+                        if (t) {
+                            t.style.display = 'none';
+                            t.classList.add('jp-collapsed');
+                            btn.innerHTML = showText;
+                            btn.classList.add('btn-primary');
+                            btn.classList.remove('btn-outline-secondary');
+                            btn.setAttribute('aria-expanded', 'false');
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', restoreJpFilters);
+    } else {
+        restoreJpFilters();
+    }
+})();
+";
+    $PAGE->requires->js_init_code($jscode, true);
 }
 
 /**
@@ -2592,7 +2659,13 @@ function local_jobportal_require_styles() {
 function local_jobportal_render_filter_toggle_button($targetid, $storagekey) {
     $hidetext = '👁️ ' . get_string('hidefilters', 'local_jobportal');
     $showtext = '👁️ ' . get_string('showfilters', 'local_jobportal');
-    $onclick = "var t=document.getElementById('" . s($targetid) . "');if(t){var h=t.style.display==='none'||t.classList.contains('jp-collapsed');t.style.display=h?'':'none';if(h){t.classList.remove('jp-collapsed');this.innerHTML='" . s($hidetext) . "';this.classList.remove('btn-primary');this.classList.add('btn-outline-secondary');}else{t.classList.add('jp-collapsed');this.innerHTML='" . s($showtext) . "';this.classList.add('btn-primary');this.classList.remove('btn-outline-secondary');}try{localStorage.setItem('" . s($storagekey) . "',h?'0':'1');}catch(e){}}return false;";
+
+    $jsescapedtarget = addslashes($targetid);
+    $jsescapedstorage = addslashes($storagekey);
+    $jsescapedshow = addslashes($showtext);
+    $jsescapedhide = addslashes($hidetext);
+
+    $onclick = "(function(btn){var t=document.getElementById('" . $jsescapedtarget . "');if(!t){return;}var h=(t.style.display==='none'||t.classList.contains('jp-collapsed'));if(h){t.style.display='block';t.classList.remove('jp-collapsed');btn.innerHTML='" . $jsescapedhide . "';btn.classList.remove('btn-primary');btn.classList.add('btn-outline-secondary');btn.setAttribute('aria-expanded','true');try{localStorage.setItem('" . $jsescapedstorage . "','0');}catch(e){}}else{t.style.display='none';t.classList.add('jp-collapsed');btn.innerHTML='" . $jsescapedshow . "';btn.classList.add('btn-primary');btn.classList.remove('btn-outline-secondary');btn.setAttribute('aria-expanded','false');try{localStorage.setItem('" . $jsescapedstorage . "','1');}catch(e){}}})(this);return false;";
 
     return html_writer::tag(
         'button',

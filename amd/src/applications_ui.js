@@ -320,6 +320,38 @@ define([], function() {
         });
     };
 
+    var bindFilterToggle = function() {
+        var button = document.querySelector('#jp-apps-filter-card .jp-toggle-filters-btn');
+        var wrap = byId('jp-apps-filter-content-wrap');
+        if (!button || !wrap) {
+            return;
+        }
+
+        try {
+            if (localStorage.getItem('jp_apps_filters_hidden') === '1') {
+                wrap.style.display = 'none';
+                wrap.classList.add('jp-collapsed');
+                button.innerHTML = button.getAttribute('data-show-text') || '👁️ Show Filters';
+                button.classList.add('btn-primary');
+                button.classList.remove('btn-outline-secondary');
+                button.setAttribute('aria-expanded', 'false');
+            }
+        } catch (e) {}
+
+        button.addEventListener('click', function(e) {
+            e.preventDefault();
+            if (window.jpToggleFilters) {
+                window.jpToggleFilters(
+                    'jp-apps-filter-content-wrap',
+                    button,
+                    'jp_apps_filters_hidden',
+                    button.getAttribute('data-show-text'),
+                    button.getAttribute('data-hide-text')
+                );
+            }
+        });
+    };
+
     return {
         init: function(stageScheduleMap) {
             if (!stageScheduleMap || typeof stageScheduleMap !== 'object') {
@@ -330,6 +362,7 @@ define([], function() {
             bindResumePreview();
             bindStageForms(stageScheduleMap);
             bindClosedRoundsToggle();
+            bindFilterToggle();
         }
     };
 });
