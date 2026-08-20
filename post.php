@@ -645,6 +645,33 @@ if ($mform->is_cancelled()) {
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'post');
 
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
+echo html_writer::start_div('jp-page-hero mb-4');
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center mb-2');
+echo html_writer::start_div('col-12');
+echo html_writer::tag('h2', get_string('postjob', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+echo html_writer::tag('p', 'Create or edit a job listing for students to apply.', array('class' => 'jp-hero-subtitle mb-0'));
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div(); // jp-page-hero
+
+echo html_writer::start_div('container-fluid pb-4');
+echo html_writer::start_div('row justify-content-center');
+echo html_writer::start_div('col-xl-9 col-lg-10');
+
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4 jp-post-form-wrapper'));
+
 $mform->display();
+
+echo html_writer::end_tag('div');
+echo html_writer::end_tag('div');
+
+echo html_writer::end_div(); // col
+echo html_writer::end_div(); // row
+echo html_writer::end_div(); // container-fluid
+echo html_writer::end_tag('div'); // local-jobportal-page
 
 echo $OUTPUT->footer();

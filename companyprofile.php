@@ -169,39 +169,75 @@ if ($mform->is_cancelled()) {
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'companies');
 
-echo html_writer::start_tag('div', array('class' => 'mb-3'));
+echo html_writer::start_tag('div', array('class' => 'jp-page-hero mb-4'));
+echo html_writer::start_tag('div', array('class' => 'jp-hero-content container-fluid py-4'));
+echo html_writer::tag('h2', get_string('managecompanies', 'local_jobportal'), array('class' => 'text-white font-weight-bold mb-0'));
+echo html_writer::end_tag('div');
+echo html_writer::end_tag('div');
+
+echo html_writer::start_tag('div', array('class' => 'container-fluid'));
+echo html_writer::start_tag('div', array('class' => 'row mb-4'));
+
+// Form section (Left)
+echo html_writer::start_tag('div', array('class' => 'col-lg-8'));
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+
+echo html_writer::start_tag('div', array('class' => 'd-flex justify-content-between align-items-center mb-3 border-bottom pb-3'));
+echo html_writer::tag('h5', '🏢 ' . ($company ? get_string('editcompanyprofile', 'local_jobportal') : get_string('addcompanyprofile', 'local_jobportal')), array('class' => 'card-title font-weight-bold mb-0'));
 echo html_writer::link(
     new moodle_url('/local/jobportal/companyprofile.php'),
-    get_string('addcompanyprofile', 'local_jobportal'),
-    array('class' => 'btn btn-primary')
+    '➕ ' . get_string('addcompanyprofile', 'local_jobportal'),
+    array('class' => 'btn btn-outline-primary btn-sm jp-action-pill')
 );
 echo html_writer::end_tag('div');
 
+$mform->display();
+
+echo html_writer::end_tag('div');
+echo html_writer::end_tag('div');
+echo html_writer::end_tag('div'); // col-lg-8
+
+// Company Stats Preview (Right)
+echo html_writer::start_tag('div', array('class' => 'col-lg-4'));
 if ($company) {
     $stats = local_jobportal_get_company_stats($company->id);
 
-    echo html_writer::start_tag('div', array('class' => 'card mb-4'));
-    echo html_writer::start_tag('div', array('class' => 'card-body'));
-    echo html_writer::tag('h5', format_string($company->name), array('class' => 'card-title'));
-    echo html_writer::tag('p', get_string('companyprofilesetup', 'local_jobportal'), array('class' => 'text-muted mb-2'));
-    echo html_writer::start_tag('ul', array('class' => 'list-group list-group-flush'));
-    echo html_writer::tag('li', get_string('jobsposted', 'local_jobportal') . ': ' . $stats->jobsposted, array('class' => 'list-group-item'));
-    echo html_writer::tag('li', get_string('activejobs', 'local_jobportal') . ': ' . $stats->activejobs, array('class' => 'list-group-item'));
-    echo html_writer::tag('li', get_string('applicationsreceived', 'local_jobportal') . ': ' . $stats->applicationsreceived, array('class' => 'list-group-item'));
-    echo html_writer::end_tag('ul');
-    echo html_writer::div(
-        html_writer::link(new moodle_url('/local/jobportal/company.php', array('id' => $company->id)), get_string('viewcompanyprofile', 'local_jobportal')),
-        'mt-3'
-    );
+    echo html_writer::start_tag('div', array('class' => 'card jp-card border-0 shadow-sm mb-4 h-100'));
+    echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+    echo html_writer::tag('h5', format_string($company->name), array('class' => 'card-title font-weight-bold mb-3'));
+    echo html_writer::tag('p', get_string('companyprofilesetup', 'local_jobportal'), array('class' => 'text-muted small mb-4'));
+    
+    echo html_writer::start_tag('div', array('class' => 'd-flex justify-content-between mb-3 border-bottom pb-2'));
+    echo html_writer::tag('span', get_string('jobsposted', 'local_jobportal'), array('class' => 'text-muted'));
+    echo html_writer::tag('span', (int)$stats->jobsposted, array('class' => 'font-weight-bold'));
+    echo html_writer::end_tag('div');
+    
+    echo html_writer::start_tag('div', array('class' => 'd-flex justify-content-between mb-3 border-bottom pb-2'));
+    echo html_writer::tag('span', get_string('activejobs', 'local_jobportal'), array('class' => 'text-muted'));
+    echo html_writer::tag('span', (int)$stats->activejobs, array('class' => 'font-weight-bold text-success'));
+    echo html_writer::end_tag('div');
+    
+    echo html_writer::start_tag('div', array('class' => 'd-flex justify-content-between mb-4'));
+    echo html_writer::tag('span', get_string('applicationsreceived', 'local_jobportal'), array('class' => 'text-muted'));
+    echo html_writer::tag('span', (int)$stats->applicationsreceived, array('class' => 'font-weight-bold text-primary'));
+    echo html_writer::end_tag('div');
+
+    echo html_writer::link(new moodle_url('/local/jobportal/company.php', array('id' => $company->id)), '👁️ ' . get_string('viewcompanyprofile', 'local_jobportal'), array('class' => 'btn btn-outline-secondary w-100 jp-action-pill'));
     echo html_writer::end_tag('div');
     echo html_writer::end_tag('div');
 }
+echo html_writer::end_tag('div'); // col-lg-4
 
-$mform->display();
+echo html_writer::end_tag('div'); // row
 
+// Companies List Table
 $totalcompanies = (int)$DB->count_records('local_jobportal_companies');
 $companies = $DB->get_records('local_jobportal_companies', null, 'name ASC', '*', $companypage * $companiesperpage, $companiesperpage);
-echo html_writer::tag('h4', get_string('companies', 'local_jobportal'), array('class' => 'mt-4'));
+
+echo html_writer::start_tag('div', array('class' => 'card jp-card border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::tag('h5', '📋 ' . get_string('companies', 'local_jobportal') . ' (' . $totalcompanies . ')', array('class' => 'card-title font-weight-bold mb-4'));
 
 if (empty($companies)) {
     echo html_writer::tag('p', get_string('nocompanies', 'local_jobportal'), array('class' => 'alert alert-info'));
@@ -212,7 +248,9 @@ if (empty($companies)) {
     }
     $pagingurl = new moodle_url('/local/jobportal/companyprofile.php', $pagingparams);
     if ($totalcompanies > $companiesperpage) {
+        echo html_writer::start_div('mb-3');
         echo $OUTPUT->paging_bar($totalcompanies, $companypage, $companiesperpage, $pagingurl, 'companypage');
+        echo html_writer::end_div();
     }
 
     $table = new html_table();
@@ -222,7 +260,7 @@ if (empty($companies)) {
         get_string('applicationsreceived', 'local_jobportal'),
         get_string('actions'),
     );
-    $table->attributes['class'] = 'table table-sm table-striped table-bordered jp-table jp-data-table jp-companies-table';
+    $table->attributes['class'] = 'table table-sm table-striped table-bordered jp-table jp-data-table jp-companies-table w-100';
 
     foreach ($companies as $item) {
         $stats = local_jobportal_get_company_stats($item->id);
@@ -232,18 +270,27 @@ if (empty($companies)) {
         $actions[] = html_writer::link(new moodle_url('/local/jobportal/post.php', array('companyid' => $item->id)), get_string('postjob', 'local_jobportal'));
 
         $table->data[] = array(
-            format_string($item->name),
-            $stats->jobsposted,
-            $stats->applicationsreceived,
-            implode(' | ', $actions),
+            html_writer::tag('span', format_string($item->name), array('class' => 'font-weight-bold text-dark')),
+            html_writer::tag('span', $stats->jobsposted, array('class' => 'badge badge-secondary px-2 py-1')),
+            html_writer::tag('span', $stats->applicationsreceived, array('class' => 'badge badge-info px-2 py-1')),
+            implode(' <span class="text-muted mx-1">|</span> ', $actions),
         );
     }
 
+    echo html_writer::start_div('table-responsive');
     echo html_writer::table($table);
+    echo html_writer::end_div();
 
     if ($totalcompanies > $companiesperpage) {
+        echo html_writer::start_div('mt-3');
         echo $OUTPUT->paging_bar($totalcompanies, $companypage, $companiesperpage, $pagingurl, 'companypage');
+        echo html_writer::end_div();
     }
 }
+
+echo html_writer::end_tag('div'); // card-body
+echo html_writer::end_tag('div'); // card
+
+echo html_writer::end_tag('div'); // container-fluid
 
 echo $OUTPUT->footer();

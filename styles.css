@@ -1,10 +1,148 @@
+:root {
+    --jp-primary-grad: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    --jp-primary: #667eea;
+    --jp-accent: #4e73df;
+    --jp-success: #2e7d32;
+    --jp-warning: #f59e0b;
+    --jp-danger: #dc2626;
+    --jp-bg: #f4f6fb;
+    --jp-surface: #ffffff;
+    --jp-border: #e3e6f0;
+    --jp-text: #1f2d3d;
+    --jp-muted: #667085;
+    --jp-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    --jp-shadow: 0 4px 16px rgba(0,0,0,0.07);
+    --jp-shadow-hover: 0 8px 30px rgba(0,0,0,0.12);
+}
+
+.local-jobportal-page {
+    background-color: var(--jp-bg);
+    min-height: 100vh;
+    padding-bottom: 2rem;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: var(--jp-text);
+}
+
+.jp-empty-state {
+    text-align: center;
+    padding: 3rem 1rem;
+    background: var(--jp-surface);
+    border-radius: 12px;
+    border: 1px solid var(--jp-border);
+    margin: 2rem 0;
+}
+.jp-empty-state-icon {
+    font-size: 3rem;
+    color: var(--jp-muted);
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+.jp-empty-state-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--jp-text);
+    margin-bottom: 0.5rem;
+}
+.jp-empty-state-desc {
+    color: var(--jp-muted);
+    margin-bottom: 1.5rem;
+}
+
+.jp-form-section {
+    background: var(--jp-surface);
+    border: 1px solid var(--jp-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
+}
+
+.jp-page-hero {
+    background: var(--jp-primary-grad);
+    border-radius: 16px;
+    padding: 3rem 1.5rem;
+    color: white;
+    box-shadow: var(--jp-shadow);
+    margin-bottom: 2rem;
+}
+.jp-hero-title {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: white;
+}
+.jp-hero-subtitle {
+    font-size: 1.1rem;
+    color: rgba(255,255,255,0.85) !important;
+}
+.jp-hero-search-form {
+    max-width: 600px;
+    margin: 0 auto;
+}
+.jp-search-pill {
+    background: white;
+    border-radius: 999px;
+    padding: 0.25rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.jp-search-pill .jp-search-input {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+    border-radius: 999px;
+    padding-left: 1.25rem;
+    font-size: 1.05rem;
+}
+.jp-search-pill .jp-search-input:focus {
+    box-shadow: none;
+    outline: none;
+}
+.jp-search-pill .jp-search-btn {
+    border-radius: 999px !important;
+    padding: 0.6rem 1.5rem;
+    font-weight: 600;
+}
+
+.jp-action-pill {
+    border-radius: 999px;
+    padding: 0.5rem 1.25rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+.jp-action-pill:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--jp-shadow);
+}
+
+.jp-notification-banner {
+    display: flex;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.jp-notification-info {
+    background-color: #e8f4fd;
+    color: #0c5460;
+    border-left: 4px solid #17a2b8;
+}
+.jp-notification-warning {
+    background-color: #fff3cd;
+    color: #856404;
+    border-left: 4px solid #ffc107;
+}
+
 .jp-header-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--jp-primary-grad);
     color: white;
     padding: 2rem;
     border-radius: 12px;
     margin-bottom: 2rem;
-    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+    box-shadow: var(--jp-shadow);
 }
 .jp-header-card h3,
 .jp-header-card h5 {
@@ -18,8 +156,246 @@
     gap: 1rem;
     flex-wrap: wrap;
 }
+
+/* Job Cards */
+.jp-job-card {
+    border: none;
+    border-radius: 12px;
+    box-shadow: var(--jp-shadow);
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: var(--jp-surface);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+}
+.jp-job-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--jp-shadow-hover);
+}
+.jp-card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.jp-card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--jp-shadow-hover);
+}
+.jp-job-card-body {
+    padding: 1.5rem;
+}
+.jp-job-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+.jp-job-card-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin: 0;
+    color: var(--jp-text);
+}
+.jp-job-company-head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+.jp-job-company-logo, .jp-job-company-fallback {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: contain;
+    background: var(--jp-bg);
+}
+.jp-job-company-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    font-weight: bold;
+    color: var(--jp-muted);
+}
+.jp-job-company-meta h6 {
+    font-weight: 600;
+    color: var(--jp-muted);
+    margin: 0 0 0.25rem 0;
+}
+.jp-job-company-location {
+    font-size: 0.875rem;
+    color: var(--jp-muted);
+}
+.jp-job-card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.jp-job-card-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: var(--jp-bg);
+    border-radius: 8px;
+}
+.jp-job-card-meta-item {
+    display: flex;
+    flex-direction: column;
+}
+.jp-job-card-meta-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--jp-muted);
+    margin-bottom: 0.25rem;
+}
+.jp-job-card-meta-value {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--jp-text);
+}
+.jp-job-card-desc {
+    font-size: 0.95rem;
+    color: var(--jp-text);
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+.jp-job-user-status {
+    border-top: 1px solid var(--jp-border);
+    padding-top: 1rem;
+    margin-top: 1rem;
+}
+.jp-job-card-actions {
+    display: flex;
+    gap: 1rem;
+    padding-top: 1.5rem;
+    margin-top: auto;
+}
+.jp-job-card-actions .btn {
+    border-radius: 999px;
+    font-weight: 600;
+    padding: 0.5rem 1.5rem;
+}
+.jp-job-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+}
+@media (min-width: 992px) {
+    .jp-job-grid {
+        grid-template-columns: 1fr; /* Keep single column for better scanning and detail visibility */
+        max-width: 800px;
+        margin: 0 auto;
+    }
+}
+.jp-sticky-sidebar {
+    position: sticky;
+    top: 20px;
+    z-index: 10;
+}
+.jp-job-desc-content, .jp-job-req-content {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    color: var(--jp-text);
+}
+.jp-job-desc-content ul, .jp-job-req-content ul {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+}
+.jp-job-desc-content li, .jp-job-req-content li {
+    margin-bottom: 0.5rem;
+}
+.jp-myapp-card {
+    background: var(--jp-surface);
+    border-radius: var(--jp-radius-lg);
+    box-shadow: var(--jp-shadow-sm);
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--jp-border);
+    transition: all 0.2s ease;
+}
+.jp-myapp-card:hover {
+    box-shadow: var(--jp-shadow-md);
+    border-color: var(--jp-primary);
+}
+.jp-myapp-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    border-bottom: 1px solid var(--jp-border);
+    padding-bottom: 1rem;
+    margin-bottom: 1rem;
+}
+.jp-myapp-title {
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+    color: var(--jp-text);
+}
+.jp-myapp-company {
+    font-size: 1rem;
+    color: var(--jp-text-muted);
+}
+.jp-myapp-status-wrap {
+    text-align: right;
+}
+.jp-myapp-status-row {
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+}
+.jp-myapp-status-label {
+    color: var(--jp-text-muted);
+    margin-right: 0.5rem;
+}
+.jp-myapp-meta-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+.jp-myapp-meta-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--jp-text-muted);
+    font-weight: 700;
+}
+.jp-myapp-meta-value {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--jp-text);
+}
+.jp-myapp-timeline {
+    background: #f8f9fa;
+    border-radius: var(--jp-radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+.jp-myapp-actions {
+    text-align: right;
+    margin-top: 1rem;
+}
 .jp-header-main-left {
     min-width: 220px;
+}
+
+/* Star Rating Widget */
+.jp-star-rating-widget {
+    font-size: 1.5rem;
+    line-height: 1;
+}
+.jp-star-label {
+    color: var(--jp-border-dark);
+    cursor: pointer;
+    transition: color 0.2s ease;
+    padding: 0 0.1rem;
+}
+.jp-star-label:hover,
+.jp-star-label:hover ~ .jp-star-label,
+.jp-star-input:checked ~ .jp-star-label {
+    color: var(--jp-warning);
 }
 .jp-header-brand {
     display: flex;

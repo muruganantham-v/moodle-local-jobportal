@@ -122,6 +122,9 @@ echo html_writer::end_div();
 echo html_writer::end_div();
 echo html_writer::end_div();
 
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
+echo html_writer::start_div('container-fluid py-4');
+
 if (empty($assignments)) {
     echo html_writer::tag('p', get_string('noreviewsassigned', 'local_jobportal'), array('class' => 'alert alert-info'));
 } else {
@@ -130,17 +133,7 @@ if (empty($assignments)) {
         echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $pagingurl);
     }
 
-    $table = new html_table();
-    $table->head = array(
-        get_string('applicantname', 'local_jobportal'),
-        get_string('reviewassignmentstatus', 'local_jobportal'),
-        get_string('resumereviewstatus', 'local_jobportal'),
-        get_string('timeassigned', 'local_jobportal'),
-        get_string('timereviewed', 'local_jobportal'),
-        get_string('actions'),
-    );
-    $table->attributes['class'] = 'table table-sm table-striped table-bordered jp-table jp-data-table jp-myreviews-table';
-
+    echo html_writer::start_div('row jp-review-grid');
     foreach ($assignments as $assignment) {
         $assignmentstatus = local_jobportal_normalize_resume_assignment_status($assignment->status);
         $assignmentlabel = isset($assignmentstatusoptions[$assignmentstatus]) ?
@@ -156,32 +149,55 @@ if (empty($assignments)) {
             $timereviewed = userdate($assignment->timereviewed, $dateformat);
         }
 
-        $table->data[] = array(
-            fullname($assignment) . html_writer::div(s($assignment->email), 'text-muted small'),
-            html_writer::tag('span', $assignmentlabel, array('class' => $assignmentbadge)),
-            html_writer::tag('span', $resumelabel, array('class' => $resumebadge)),
-            userdate($assignment->timeassigned, $dateformat),
-            $timereviewed,
-            html_writer::div(
-                html_writer::link(
-                    new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$assignment->profileid)),
-                    get_string('openreview', 'local_jobportal')
-                ),
-                'mb-1'
-            ) .
-            html_writer::link(
-                new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$assignment->studentid)),
-                get_string('viewstudentprofile', 'local_jobportal')
-            ),
-        );
-    }
+        echo html_writer::start_div('col-md-6 col-lg-4 mb-4');
+        echo html_writer::start_div('card h-100 jp-review-card shadow-sm border-0');
+        
+        echo html_writer::start_div('card-header bg-white border-bottom-0 pt-4 pb-0 d-flex justify-content-between align-items-center');
+        echo html_writer::tag('span', $assignmentlabel, array('class' => $assignmentbadge));
+        echo html_writer::tag('span', $resumelabel, array('class' => $resumebadge));
+        echo html_writer::end_div();
 
-    echo html_writer::table($table);
+        echo html_writer::start_div('card-body');
+        echo html_writer::tag('h5', fullname($assignment), array('class' => 'card-title font-weight-bold mb-1'));
+        echo html_writer::tag('div', s($assignment->email), array('class' => 'text-muted small mb-3'));
+        
+        echo html_writer::start_div('d-flex flex-column gap-2 mb-3 small');
+        echo html_writer::div(
+            html_writer::tag('strong', get_string('timeassigned', 'local_jobportal') . ': ', array('class' => 'text-muted')) .
+            userdate($assignment->timeassigned, $dateformat)
+        );
+        echo html_writer::div(
+            html_writer::tag('strong', get_string('timereviewed', 'local_jobportal') . ': ', array('class' => 'text-muted')) .
+            $timereviewed
+        );
+        echo html_writer::end_div();
+        
+        echo html_writer::end_div();
+
+        echo html_writer::start_div('card-footer bg-white border-top-0 pb-4 d-flex gap-2');
+        echo html_writer::link(
+            new moodle_url('/local/jobportal/resume_review.php', array('profileid' => (int)$assignment->profileid)),
+            '👁️ ' . get_string('openreview', 'local_jobportal'),
+            array('class' => 'btn btn-primary btn-sm flex-grow-1 jp-action-pill')
+        );
+        echo html_writer::link(
+            new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$assignment->studentid)),
+            '👤 Profile',
+            array('class' => 'btn btn-outline-secondary btn-sm jp-action-pill')
+        );
+        echo html_writer::end_div();
+
+        echo html_writer::end_div();
+        echo html_writer::end_div();
+    }
+    echo html_writer::end_div(); // End grid
 
     if ($totalcount > $perpage) {
         $pagingurl = new moodle_url('/local/jobportal/myreviews.php', array('view' => $viewfilter));
         echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $pagingurl);
     }
 }
+echo html_writer::end_div();
+echo html_writer::end_tag('div');
 
 echo $OUTPUT->footer();

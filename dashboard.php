@@ -355,76 +355,92 @@ $companystatspaged = array_slice($companystats, $companystatspage * $companystat
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'dashboard');
 
-echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-echo html_writer::start_tag('div', array('class' => 'card-body'));
-echo html_writer::tag('h4', get_string('funnelanalytics', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
+echo html_writer::start_div('jp-page-hero mb-4');
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center mb-4');
+echo html_writer::start_div('col-md-6');
+echo html_writer::tag('h2', get_string('managerdashboard', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+echo html_writer::tag('p', 'System-wide analytics and application pipeline.', array('class' => 'jp-hero-subtitle mb-0'));
+echo html_writer::end_div();
+echo html_writer::start_div('col-md-6 text-md-right mt-3 mt-md-0');
+echo html_writer::link(new moodle_url('/local/jobportal/jobsdashboard.php'), '💼 View Jobs Dashboard', array('class' => 'btn btn-outline-light jp-action-pill'));
+echo html_writer::end_div();
+echo html_writer::end_div();
 
-echo html_writer::start_tag('div', array('class' => 'table-responsive'));
-echo html_writer::start_tag('table', array('class' => 'table table-sm table-striped table-bordered mb-0 jp-table jp-data-table jp-funnel-table'));
-echo html_writer::tag(
-    'thead',
-    html_writer::tag(
-        'tr',
-        html_writer::tag('th', get_string('stage', 'local_jobportal')) .
-        html_writer::tag('th', get_string('reachedcount', 'local_jobportal')) .
-        html_writer::tag('th', get_string('conversionfromapplied', 'local_jobportal')) .
-        html_writer::tag('th', get_string('conversionfromprevious', 'local_jobportal'))
-    )
-);
+echo html_writer::start_div('d-flex flex-wrap gap-3 mb-2');
+$topstats = [
+    ['label' => get_string('applied', 'local_jobportal'), 'count' => $totalapplications],
+    ['label' => get_string('shortlisted', 'local_jobportal'), 'count' => $shortlistedcount],
+    ['label' => get_string('offermade', 'local_jobportal'), 'count' => $offermadecount],
+];
+foreach ($topstats as $idx => $stat) {
+    if ($idx > 0) {
+        echo html_writer::div('', 'border-right border-white-50 mx-2');
+    }
+    echo html_writer::start_div('text-center px-3');
+    echo html_writer::tag('div', (int)$stat['count'], array('class' => 'h3 mb-0 font-weight-bold text-white'));
+    echo html_writer::tag('div', $stat['label'], array('class' => 'small text-white-50 text-uppercase font-weight-bold'));
+    echo html_writer::end_div();
+}
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div(); // jp-page-hero
 
-echo html_writer::start_tag('tbody');
-echo html_writer::tag(
-    'tr',
-    html_writer::tag('td', get_string('applied', 'local_jobportal')) .
-    html_writer::tag('td', $totalapplications) .
-    html_writer::tag('td', local_jobportal_dashboard_percent($totalapplications, $totalapplications)) .
-    html_writer::tag('td', '-')
-);
-echo html_writer::tag(
-    'tr',
-    html_writer::tag('td', get_string('shortlisted', 'local_jobportal')) .
-    html_writer::tag('td', $shortlistedcount) .
-    html_writer::tag('td', local_jobportal_dashboard_percent($shortlistedcount, $totalapplications)) .
-    html_writer::tag('td', local_jobportal_dashboard_percent($shortlistedcount, $totalapplications))
-);
-echo html_writer::tag(
-    'tr',
-    html_writer::tag('td', get_string('offermade', 'local_jobportal')) .
-    html_writer::tag('td', $offermadecount) .
-    html_writer::tag('td', local_jobportal_dashboard_percent($offermadecount, $totalapplications)) .
-    html_writer::tag('td', local_jobportal_dashboard_percent($offermadecount, $shortlistedcount))
-);
-echo html_writer::end_tag('tbody');
-echo html_writer::end_tag('table');
+echo html_writer::start_div('container-fluid pb-4');
+
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::tag('h5', '📊 ' . get_string('funnelanalytics', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-4'));
+
+$funnel_data = [
+    ['label' => get_string('applied', 'local_jobportal'), 'count' => $totalapplications, 'color' => 'bg-primary'],
+    ['label' => get_string('shortlisted', 'local_jobportal'), 'count' => $shortlistedcount, 'color' => 'bg-info'],
+    ['label' => get_string('offermade', 'local_jobportal'), 'count' => $offermadecount, 'color' => 'bg-success'],
+];
+
+echo html_writer::start_div('jp-funnel-chart');
+foreach ($funnel_data as $row) {
+    $percent = empty($totalapplications) ? 0 : round(($row['count'] / $totalapplications) * 100);
+    echo html_writer::start_div('mb-3');
+    echo html_writer::start_div('d-flex justify-content-between mb-1 small font-weight-bold');
+    echo html_writer::tag('span', $row['label']);
+    echo html_writer::tag('span', $row['count'] . ' (' . $percent . '%)');
+    echo html_writer::end_div();
+    echo html_writer::start_div('progress', array('style' => 'height: 12px; border-radius: 6px; background-color: #e9ecef;'));
+    echo html_writer::tag('div', '', array('class' => 'progress-bar ' . $row['color'], 'role' => 'progressbar', 'style' => 'width: ' . $percent . '%'));
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+}
+echo html_writer::end_div(); // jp-funnel-chart
+
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
-echo html_writer::end_tag('div');
 
-echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-echo html_writer::start_tag('div', array('class' => 'card-body'));
-echo html_writer::tag('h4', get_string('agingandstale', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::tag('h5', '⏳ ' . get_string('agingandstale', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-4'));
 
-echo html_writer::start_tag('div', array('class' => 'row mb-3'));
+echo html_writer::start_tag('div', array('class' => 'row mb-4'));
 echo html_writer::tag(
     'div',
-    html_writer::tag('div', get_string('activepipeline', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $activepipelinecount, array('class' => 'h4 mb-0')),
+    html_writer::tag('div', get_string('activepipeline', 'local_jobportal'), array('class' => 'text-muted small text-uppercase font-weight-bold mb-1')) .
+    html_writer::tag('div', $activepipelinecount, array('class' => 'h3 mb-0 text-primary font-weight-bold')),
     array('class' => 'col-md-3')
 );
 echo html_writer::tag(
     'div',
-    html_writer::tag('div', get_string('staleapplications', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $staletotalcount, array('class' => 'h4 mb-0')),
+    html_writer::tag('div', get_string('staleapplications', 'local_jobportal'), array('class' => 'text-muted small text-uppercase font-weight-bold mb-1')) .
+    html_writer::tag('div', $staletotalcount, array('class' => 'h3 mb-0 text-warning font-weight-bold')),
     array('class' => 'col-md-3')
 );
 echo html_writer::tag(
     'div',
-    html_writer::tag('div', get_string('avgdaysopen', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $avgdaysopen, array('class' => 'h4 mb-0')),
+    html_writer::tag('div', get_string('avgdaysopen', 'local_jobportal'), array('class' => 'text-muted small text-uppercase font-weight-bold mb-1')) .
+    html_writer::tag('div', $avgdaysopen, array('class' => 'h3 mb-0 text-info font-weight-bold')),
     array('class' => 'col-md-3')
 );
 echo html_writer::end_tag('div');
-
 $staleoptions = array(3 => 3, 7 => 7, 14 => 14, 30 => 30, 60 => 60);
 if (!isset($staleoptions[$staledays])) {
     $staleoptions[$staledays] = $staledays;
@@ -534,9 +550,9 @@ if (empty($staletotalcount)) {
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
 
-echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-echo html_writer::start_tag('div', array('class' => 'card-body'));
-echo html_writer::tag('h4', get_string('percompanystats', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::tag('h5', '🏢 ' . get_string('percompanystats', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-4'));
 
 if (empty($companystatstotalcount)) {
     echo html_writer::tag('p', get_string('nodataavailable', 'local_jobportal'), array('class' => 'text-muted mb-0'));

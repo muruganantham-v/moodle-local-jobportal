@@ -1,0 +1,225 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 1300" width="100%" height="100%">
+  <!-- Definitions for filters and arrows -->
+  <defs>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-opacity="0.1" />
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#4a5568" />
+    </marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#2e7d32" />
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1.5 L 8 5 L 0 8.5 z" fill="#c62828" />
+    </marker>
+  </defs>
+
+  <!-- Background style -->
+  <style>
+    .title { font-family: system-ui, -apple-system, sans-serif; font-size: 22px; font-weight: bold; fill: #1a202c; text-anchor: middle; }
+    .subtitle { font-family: system-ui, -apple-system, sans-serif; font-size: 13px; fill: #718096; text-anchor: middle; }
+    .label { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; font-weight: bold; fill: #2d3748; text-anchor: middle; }
+    .sublabel { font-family: system-ui, -apple-system, sans-serif; font-size: 10px; fill: #718096; text-anchor: middle; font-style: italic; }
+    .arrow-text { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #4a5568; font-weight: 500; }
+    .arrow-text-green { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #2e7d32; font-weight: bold; }
+    .arrow-text-red { font-family: system-ui, -apple-system, sans-serif; font-size: 11px; fill: #c62828; font-weight: bold; }
+    
+    .manager-rect { fill: #e3f2fd; stroke: #1565c0; stroke-width: 1.5; rx: 8; ry: 8; filter: url(#shadow); }
+    .student-rect { fill: #e8f5e9; stroke: #2e7d32; stroke-width: 1.5; rx: 8; ry: 8; filter: url(#shadow); }
+    .reviewer-rect { fill: #fff8e1; stroke: #f57f17; stroke-width: 1.5; rx: 8; ry: 8; filter: url(#shadow); }
+    .terminal-rect { fill: #ffebee; stroke: #c62828; stroke-width: 1.5; rx: 8; ry: 8; filter: url(#shadow); }
+    
+    .connection-line { fill: none; stroke: #4a5568; stroke-width: 1.5; marker-end: url(#arrow); }
+    .connection-line-green { fill: none; stroke: #2e7d32; stroke-width: 1.5; marker-end: url(#arrow-green); }
+    .connection-line-red { fill: none; stroke: #c62828; stroke-width: 1.5; marker-end: url(#arrow-red); }
+    
+    .group-box { fill: none; stroke: #cbd5e0; stroke-width: 1; stroke-dasharray: 4 4; rx: 12; ry: 12; }
+    .group-title { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; font-weight: bold; fill: #a0aec0; }
+  </style>
+
+  <!-- Title -->
+  <text x="350" y="30" class="title">Recruitment Workflow Flowchart</text>
+  <text x="350" y="50" class="subtitle">local_jobportal plugin user flows and transitions</text>
+
+  <!-- Subgraph Boxes -->
+  <!-- Manager Setup Group -->
+  <rect x="20" y="70" width="220" height="200" class="group-box" />
+  <text x="30" y="90" class="group-title">MANAGER SETUP</text>
+
+  <!-- Student Setup Group -->
+  <rect x="460" y="70" width="220" height="110" class="group-box" />
+  <text x="470" y="90" class="group-title">STUDENT SETUP</text>
+
+  <!-- Review Process Group -->
+  <rect x="460" y="200" width="220" height="260" class="group-box" />
+  <text x="470" y="220" class="group-title">RESUME REVIEW PROCESS</text>
+
+  <!-- Application & Hiring Group -->
+  <rect x="150" y="500" width="400" height="770" class="group-box" />
+  <text x="160" y="520" class="group-title">APPLICATION & HIRING LIFECYCLE</text>
+
+  <!-- ================= NODES ================= -->
+
+  <!-- Manager Setup -->
+  <g transform="translate(40, 110)">
+    <rect width="180" height="50" class="manager-rect" />
+    <text x="90" y="22" class="label">1. Create Company Profile</text>
+    <text x="90" y="38" class="sublabel">/companyprofile.php</text>
+  </g>
+
+  <g transform="translate(40, 200)">
+    <rect width="180" height="50" class="manager-rect" />
+    <text x="90" y="22" class="label">2. Post Job Drive</text>
+    <text x="90" y="38" class="sublabel">/post.php (Status: Open)</text>
+  </g>
+
+  <!-- Student Setup -->
+  <g id="node-s1" transform="translate(480, 110)">
+    <rect width="180" height="50" class="student-rect" />
+    <text x="90" y="22" class="label">3. Upload Resume PDF</text>
+    <text x="90" y="38" class="sublabel">/profile.php (Status: Submitted)</text>
+  </g>
+
+  <!-- Resume Review Process -->
+  <g transform="translate(480, 240)">
+    <rect width="180" height="50" class="manager-rect" />
+    <text x="90" y="22" class="label">4. Assign Reviewer</text>
+    <text x="90" y="38" class="sublabel">/resume_queue.php</text>
+  </g>
+
+  <g transform="translate(480, 330)">
+    <rect width="180" height="50" class="reviewer-rect" />
+    <text x="90" y="22" class="label">5. Evaluate Resume</text>
+    <text x="90" y="38" class="sublabel">/myreviews.php</text>
+  </g>
+
+  <g transform="translate(480, 420)">
+    <rect width="180" height="40" class="student-rect" />
+    <text x="90" y="24" class="label">Resume Approved</text>
+  </g>
+
+  <!-- Lifecycle -->
+  <g transform="translate(250, 540)">
+    <rect width="200" height="50" class="student-rect" />
+    <text x="100" y="22" class="label">6. Submit Job Application</text>
+    <text x="100" y="38" class="sublabel">/view.php</text>
+  </g>
+
+  <g transform="translate(250, 640)">
+    <rect width="200" height="50" class="manager-rect" />
+    <text x="100" y="22" class="label">7. Shortlist Candidate?</text>
+    <text x="100" y="38" class="sublabel">/applications.php</text>
+  </g>
+
+  <g transform="translate(250, 740)">
+    <rect width="200" height="50" class="manager-rect" />
+    <text x="100" y="22" class="label">8. Schedule Round</text>
+    <text x="100" y="38" class="sublabel">/application.php (Test / Interview)</text>
+  </g>
+
+  <g transform="translate(250, 840)">
+    <rect width="200" height="50" class="manager-rect" />
+    <text x="100" y="22" class="label">9. Update Round Outcome?</text>
+    <text x="100" y="38" class="sublabel">Status: Completed</text>
+  </g>
+
+  <g transform="translate(250, 940)">
+    <rect width="200" height="50" class="manager-rect" />
+    <text x="100" y="22" class="label">10. Make Job Offer</text>
+    <text x="100" y="38" class="sublabel">Status: Offer Made</text>
+  </g>
+
+  <g transform="translate(250, 1040)">
+    <rect width="200" height="50" class="student-rect" />
+    <text x="100" y="22" class="label">11. Student Decision</text>
+    <text x="100" y="38" class="sublabel">/myapplications.php</text>
+  </g>
+
+  <!-- Terminals -->
+  <g transform="translate(20, 640)">
+    <rect width="110" height="50" class="terminal-rect" />
+    <text x="55" y="22" class="label">Not Shortlisted</text>
+    <text x="55" y="38" class="sublabel">(Terminal)</text>
+  </g>
+
+  <g transform="translate(20, 840)">
+    <rect width="110" height="50" class="terminal-rect" />
+    <text x="55" y="22" class="label">Not Cleared</text>
+    <text x="55" y="38" class="sublabel">(Terminal)</text>
+  </g>
+
+  <g transform="translate(170, 1180)">
+    <rect width="150" height="50" class="student-rect" />
+    <text x="75" y="22" class="label">Offer Accepted</text>
+    <text x="75" y="38" class="sublabel">(Hired! / Locked)</text>
+  </g>
+
+  <g transform="translate(380, 1180)">
+    <rect width="150" height="50" class="terminal-rect" />
+    <text x="75" y="22" class="label">Offer Declined</text>
+    <text x="75" y="38" class="sublabel">(Terminal / Locked)</text>
+  </g>
+
+
+  <!-- ================= LINES / PATHS ================= -->
+
+  <!-- Manager M1 to M2 -->
+  <path d="M 130 160 L 130 200" class="connection-line" />
+
+  <!-- Student S1 to M3 -->
+  <path d="M 570 160 L 570 240" class="connection-line" />
+
+  <!-- Review assignment M3 to Review R1 -->
+  <path d="M 570 290 L 570 330" class="connection-line" />
+
+  <!-- Review outcome R1 to R2 -->
+  <path d="M 570 380 L 570 420" class="connection-line" />
+
+  <!-- R1 (Rework needed) path back to S1 -->
+  <path d="M 660 355 L 675 355 L 675 135 L 660 135" class="connection-line-red" />
+  <text x="682" y="245" class="arrow-text-red" style="text-anchor: middle; writing-mode: tb;">NEEDS REWORK</text>
+
+  <!-- Job Open M2 and Approved Resume R2 to Apply (6) -->
+  <path d="M 130 250 L 130 470 L 350 470 L 350 540" class="connection-line" />
+  <text x="140" y="460" class="arrow-text">Job Posted</text>
+
+  <!-- From R2 to Apply (6) -->
+  <path d="M 570 460 L 570 470 L 350 470 L 350 540" class="connection-line-green" />
+  <text x="490" y="465" class="arrow-text-green">Approved</text>
+
+  <!-- Submit (6) to Shortlist (7) -->
+  <path d="M 350 590 L 350 640" class="connection-line" />
+
+  <!-- Shortlist (7) outcome "No" to Not Shortlisted -->
+  <path d="M 250 665 L 130 665" class="connection-line-red" />
+  <text x="180" y="658" class="arrow-text-red">NO</text>
+
+  <!-- Shortlist (7) outcome "Yes" to Schedule (8) -->
+  <path d="M 350 690 L 350 740" class="connection-line-green" />
+  <text x="355" y="715" class="arrow-text-green">YES</text>
+
+  <!-- Schedule (8) to Outcome (9) -->
+  <path d="M 350 790 L 350 840" class="connection-line" />
+
+  <!-- Outcome (9) "Not Cleared" to Not Cleared terminal -->
+  <path d="M 250 865 L 130 865" class="connection-line-red" />
+  <text x="180" y="858" class="arrow-text-red">FAILED</text>
+
+  <!-- Outcome (9) "Cleared" to Offer (10) -->
+  <path d="M 350 890 L 350 940" class="connection-line-green" />
+  <text x="355" y="915" class="arrow-text-green">CLEARED</text>
+
+  <!-- Offer (10) to Student Decision (11) -->
+  <path d="M 350 990 L 350 1040" class="connection-line" />
+
+  <!-- Student Decision (11) Accept/Decline split -->
+  <!-- Accept: Line to (245, 1180) -->
+  <path d="M 310 1090 L 310 1120 L 245 1120 L 245 1180" class="connection-line-green" />
+  <text x="210" y="1112" class="arrow-text-green">ACCEPT</text>
+
+  <!-- Decline: Line to (455, 1180) -->
+  <path d="M 390 1090 L 390 1120 L 455 1120 L 455 1180" class="connection-line-red" />
+  <text x="410" y="1112" class="arrow-text-red">DECLINE</text>
+
+</svg>

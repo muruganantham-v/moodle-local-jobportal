@@ -9,6 +9,9 @@ defined('MOODLE_INTERNAL') || die();
 function xmldb_local_jobportal_install() {
     global $DB;
 
+    // Ensure newly declared capabilities are loaded before assignment.
+    update_capabilities('local_jobportal');
+
     // Set up default permissions for authenticated users.
     $userrole = $DB->get_record('role', array('shortname' => 'user'));
     if ($userrole) {

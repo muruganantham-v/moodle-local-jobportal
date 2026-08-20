@@ -1836,72 +1836,83 @@ if ($ismanager) {
         echo html_writer::end_tag('form');
     }
 } else {
-    // Search and filter form
-    echo html_writer::start_tag('div', array('class' => 'job-portal-search mb-3'));
-    echo html_writer::start_tag('form', array('method' => 'get', 'action' => '', 'class' => 'form-inline'));
-    echo html_writer::label(get_string('search'), 'search', false, array('class' => 'mr-2'));
+    // Wrap student view in a modern layout
+    echo html_writer::start_tag('div', array('class' => 'jp-student-dashboard'));
+
+    // Hero Section
+    echo html_writer::start_tag('div', array('class' => 'jp-page-hero mb-4'));
+    echo html_writer::start_tag('div', array('class' => 'jp-page-hero-content text-center'));
+    echo html_writer::tag('h2', get_string('jobportal', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+    echo html_writer::tag('p', 'Find your next career opportunity', array('class' => 'jp-hero-subtitle mb-4 text-white-50'));
+
+    // Pill-shaped search bar
+    echo html_writer::start_tag('form', array('method' => 'get', 'action' => '', 'class' => 'jp-hero-search-form d-flex justify-content-center'));
+    echo html_writer::start_tag('div', array('class' => 'input-group jp-search-pill'));
     echo html_writer::empty_tag('input', array(
         'type' => 'text',
         'name' => 'search',
         'id' => 'search',
         'value' => $search,
-        'class' => 'form-control mr-2',
-        'placeholder' => get_string('search')
+        'class' => 'form-control jp-search-input',
+        'placeholder' => get_string('search') . ' jobs, companies, skills...'
     ));
-    echo html_writer::tag('button', get_string('search'), array(
+    echo html_writer::start_tag('div', array('class' => 'input-group-append'));
+    echo html_writer::tag('button', '🔍 ' . get_string('search'), array(
         'type' => 'submit',
-        'class' => 'btn btn-primary'
+        'class' => 'btn btn-primary jp-search-btn'
     ));
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
     echo html_writer::end_tag('form');
     echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
 
-    // Action buttons
+    // Quick Action Bar
+    echo html_writer::start_tag('div', array('class' => 'jp-quick-actions mb-4 d-flex justify-content-center flex-wrap gap-2'));
+    
     if ($canpost) {
         echo html_writer::link(
             new moodle_url('/local/jobportal/post.php'),
-            get_string('postjob', 'local_jobportal'),
-            array('class' => 'btn btn-success mb-3')
+            '➕ ' . get_string('postjob', 'local_jobportal'),
+            array('class' => 'btn btn-success jp-action-pill')
         );
     }
 
     if ($canapply) {
-        echo ' ';
         echo html_writer::link(
             new moodle_url('/local/jobportal/myapplications.php'),
-            get_string('myapplications', 'local_jobportal'),
-            array('class' => 'btn btn-info mb-3')
+            '📋 ' . get_string('myapplications', 'local_jobportal'),
+            array('class' => 'btn btn-outline-primary jp-action-pill')
         );
-        echo ' ';
         echo html_writer::link(
             new moodle_url('/local/jobportal/profile.php'),
-            get_string('myprofile', 'local_jobportal'),
-            array('class' => 'btn btn-secondary mb-3')
+            '👤 ' . get_string('myprofile', 'local_jobportal'),
+            array('class' => 'btn btn-outline-secondary jp-action-pill')
         );
     }
 
     if ($canmanagecompanies) {
-        echo ' ';
         echo html_writer::link(
             new moodle_url('/local/jobportal/companyprofile.php'),
-            get_string('managecompanies', 'local_jobportal'),
-            array('class' => 'btn btn-outline-primary mb-3')
+            '🏢 ' . get_string('managecompanies', 'local_jobportal'),
+            array('class' => 'btn btn-outline-info jp-action-pill')
         );
     }
 
     if (has_capability('local/jobportal:managejobs', $context)) {
-        echo ' ';
         echo html_writer::link(
             new moodle_url('/local/jobportal/dashboard.php'),
-            get_string('managerdashboard', 'local_jobportal'),
-            array('class' => 'btn btn-outline-dark mb-3')
+            '📊 ' . get_string('managerdashboard', 'local_jobportal'),
+            array('class' => 'btn btn-outline-dark jp-action-pill')
         );
-        echo ' ';
         echo html_writer::link(
             new moodle_url('/local/jobportal/jobsdashboard.php'),
-            get_string('jobpostsdashboard', 'local_jobportal'),
-            array('class' => 'btn btn-outline-secondary mb-3')
+            '⚙️ ' . get_string('jobpostsdashboard', 'local_jobportal'),
+            array('class' => 'btn btn-outline-secondary jp-action-pill')
         );
     }
+    echo html_writer::end_tag('div');
+
 
     $enforcestudentpolicy = $canapply;
     $studentpolicy = $enforcestudentpolicy ? local_jobportal_get_student_job_access_policy() : null;
@@ -1913,40 +1924,40 @@ if ($ismanager) {
     if ($enforcestudentpolicy && $studentpolicy->feedmode === 'openjobs') {
         echo html_writer::tag(
             'div',
-            get_string('studentpolicyonlyopenjobsnotice', 'local_jobportal'),
-            array('class' => 'alert alert-info')
+            'ℹ️ ' . get_string('studentpolicyonlyopenjobsnotice', 'local_jobportal'),
+            array('class' => 'jp-notification-banner jp-notification-info')
         );
     }
     if (!empty($studentpolicyblockers['resumeapproved'])) {
         echo html_writer::tag(
             'div',
-            get_string(
+            '⚠️ ' . get_string(
                 'studentpolicyresumeapprovedrequired',
                 'local_jobportal',
                 $studentpolicyblockers['resumeapproved']['statuslabel']
-            ),
-            array('class' => 'alert alert-warning')
+            ) . ' <a href="' . new moodle_url('/local/jobportal/profile.php') . '">Update Resume</a>',
+            array('class' => 'jp-notification-banner jp-notification-warning')
         );
     }
     if (!empty($studentpolicyblockers['maxactive'])) {
         echo html_writer::tag(
             'div',
-            get_string('studentpolicyapplyblockedmaxactive', 'local_jobportal', (object)$studentpolicyblockers['maxactive']),
-            array('class' => 'alert alert-warning')
+            '✋ ' . get_string('studentpolicyapplyblockedmaxactive', 'local_jobportal', (object)$studentpolicyblockers['maxactive']),
+            array('class' => 'jp-notification-banner jp-notification-warning')
         );
     }
     if (!empty($studentpolicyblockers['weeklylimit'])) {
         echo html_writer::tag(
             'div',
-            get_string('studentpolicyapplyblockedweeklylimit', 'local_jobportal', (object)$studentpolicyblockers['weeklylimit']),
-            array('class' => 'alert alert-warning')
+            '✋ ' . get_string('studentpolicyapplyblockedweeklylimit', 'local_jobportal', (object)$studentpolicyblockers['weeklylimit']),
+            array('class' => 'jp-notification-banner jp-notification-warning')
         );
     }
     if (!empty($studentpolicyblockers['cooldown'])) {
         echo html_writer::tag(
             'div',
-            get_string('studentpolicyapplyblockedcooldown', 'local_jobportal', (object)$studentpolicyblockers['cooldown']),
-            array('class' => 'alert alert-warning')
+            '⏳ ' . get_string('studentpolicyapplyblockedcooldown', 'local_jobportal', (object)$studentpolicyblockers['cooldown']),
+            array('class' => 'jp-notification-banner jp-notification-warning')
         );
     }
 

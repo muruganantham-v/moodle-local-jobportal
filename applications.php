@@ -1566,78 +1566,87 @@ if (empty($applications)) {
         echo html_writer::tag('p', get_string('bulkupdatesdesc', 'local_jobportal'), array('class' => 'text-muted mb-4'));
 
     $resetfilterurl = new moodle_url('/local/jobportal/applications.php', array('jobid' => $jobid));
-    echo html_writer::start_tag('form', array('method' => 'get', 'action' => $pageactionurl, 'class' => 'mb-3'));
+    
+    echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+    echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+    echo html_writer::tag('h5', '🔍 ' . get_string('applicantfilters', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-3'));
+
+    echo html_writer::start_tag('form', array('method' => 'get', 'action' => $pageactionurl, 'class' => 'mb-0'));
     echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
-    echo html_writer::tag('h6', get_string('applicantfilters', 'local_jobportal'), array('class' => 'mb-2'));
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-note');
+    
+    echo html_writer::start_div('row mb-2');
+    echo html_writer::start_div('col-md-3 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'text',
         'name' => 'appsearch',
         'value' => $appsearch,
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'placeholder' => get_string('search'),
     ));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($shortlistfilteroptions, 'filtershortlist', $filtershortlist, false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_div('col-md-2 mb-2');
+    echo html_writer::select($shortlistfilteroptions, 'filtershortlist', $filtershortlist, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($stagefilteroptions, 'filterpoststage', $filterpoststage, false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_div('col-md-2 mb-2');
+    echo html_writer::select($stagefilteroptions, 'filterpoststage', $filterpoststage, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($resumestatusfilteroptions, 'filterresumestatus', $filterresumestatus, false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_div('col-md-2 mb-2');
+    echo html_writer::select($resumestatusfilteroptions, 'filterresumestatus', $filterresumestatus, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($hasresumefilteroptions, 'filterhasresume', $filterhasresume, false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_div('col-md-3 mb-2');
+    echo html_writer::select($hasresumefilteroptions, 'filterhasresume', $filterhasresume, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-date');
+    
+    echo html_writer::start_div('row mb-3');
+    echo html_writer::start_div('col-md-3 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'date',
         'name' => 'filterappliedfrom',
         'value' => $filterappliedfromraw,
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'title' => get_string('appliedfromfilter', 'local_jobportal'),
-        'aria-label' => get_string('appliedfromfilter', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-date');
+    echo html_writer::start_div('col-md-3 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'date',
         'name' => 'filterappliedto',
         'value' => $filterappliedtoraw,
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'title' => get_string('appliedtofilter', 'local_jobportal'),
-        'aria-label' => get_string('appliedtofilter', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-date');
+    echo html_writer::start_div('col-md-2 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'number',
         'name' => 'filterinactivefordays',
         'value' => $filterinactivefordaysraw,
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'min' => 1,
         'placeholder' => get_string('noactivitydaysfilter', 'local_jobportal'),
         'title' => get_string('noactivitydaysfilter', 'local_jobportal'),
-        'aria-label' => get_string('noactivitydaysfilter', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($appsortoptions, 'appsort', $appsort, false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_div('col-md-2 mb-2');
+    echo html_writer::select($appsortoptions, 'appsort', $appsort, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($appsortdiroptions, 'appsortdir', $appsortdir, false, array('class' => 'custom-select jp-select-control'));
-    echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-note');
-    echo html_writer::tag('button', get_string('apply'), array('type' => 'submit', 'class' => 'btn btn-outline-primary btn-sm mr-2'));
-    echo html_writer::link($resetfilterurl, get_string('resetfilters', 'local_jobportal'), array('class' => 'btn btn-outline-secondary btn-sm'));
+    echo html_writer::start_div('col-md-2 mb-2');
+    echo html_writer::select($appsortdiroptions, 'appsortdir', $appsortdir, false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
     echo html_writer::end_div();
-    echo html_writer::div(get_string('applicantsshowncount', 'local_jobportal', $filteredapplicationscount), 'text-muted small');
+    
+    echo html_writer::start_div('d-flex justify-content-between align-items-center');
+    echo html_writer::div(get_string('applicantsshowncount', 'local_jobportal', $filteredapplicationscount), 'text-muted small font-weight-bold');
+    echo html_writer::start_div('d-flex gap-2');
+    echo html_writer::tag('button', get_string('apply'), array('type' => 'submit', 'class' => 'btn btn-primary px-4 jp-action-pill'));
+    echo html_writer::link($resetfilterurl, '✖', array('class' => 'btn btn-outline-secondary jp-action-pill', 'title' => get_string('resetfilters', 'local_jobportal')));
+    echo html_writer::end_div();
+    echo html_writer::end_div();
+    
     echo html_writer::end_tag('form');
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
 
     echo html_writer::start_tag('form', array('method' => 'post', 'action' => $pageactionurl));
     echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
@@ -1788,209 +1797,243 @@ if (empty($applications)) {
     echo html_writer::end_tag('table');
     echo html_writer::end_tag('div');
 
-    echo html_writer::tag('h6', get_string('bulkshortliststatus', 'local_jobportal'), array('class' => 'mt-3'));
-    echo html_writer::div(get_string('bulknoterequiredhint', 'local_jobportal'), 'text-muted small mb-2');
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-select');
-    echo html_writer::select($shortlistoptions, 'shortliststatus', '', false, array('class' => 'custom-select jp-select-control'));
+    echo html_writer::start_tag('div', array('class' => 'row'));
+    
+    // Bulk Shortlist Card
+    echo html_writer::start_tag('div', array('class' => 'col-lg-6 mb-4'));
+    echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm h-100'));
+    echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+    echo html_writer::tag('h6', '📋 ' . get_string('bulkshortliststatus', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-3'));
+    echo html_writer::div(get_string('bulknoterequiredhint', 'local_jobportal'), 'text-muted small mb-3');
+    echo html_writer::start_div('mb-3');
+    echo html_writer::select($shortlistoptions, 'shortliststatus', '', false, array('class' => 'custom-select bg-light border-0 w-100'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-note');
+    echo html_writer::start_div('mb-3');
     echo html_writer::tag('textarea', '', array(
         'name' => 'shortlistnote',
         'rows' => 2,
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'placeholder' => get_string('shortlistnoteplaceholder', 'local_jobportal'),
     ));
-    echo html_writer::end_div();
     echo html_writer::end_div();
     echo html_writer::tag(
         'button',
         get_string('updateselectedshortlist', 'local_jobportal'),
-        array('type' => 'submit', 'name' => 'action', 'value' => 'bulkchangeshortlist', 'class' => 'btn btn-secondary btn-sm mr-2')
+        array('type' => 'submit', 'name' => 'action', 'value' => 'bulkchangeshortlist', 'class' => 'btn btn-secondary jp-action-pill')
     );
-
-    echo html_writer::tag('h6', get_string('bulkpostshortliststage', 'local_jobportal'), array('class' => 'mt-4'));
-    echo html_writer::div(get_string('multipleroundshelp', 'local_jobportal'), 'text-muted small mb-2');
-    echo html_writer::div(get_string('bulknoterequiredhint', 'local_jobportal'), 'text-muted small mb-2');
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-select');
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div'); // col
+    
+    // Bulk Post Shortlist Stage Card
+    echo html_writer::start_tag('div', array('class' => 'col-lg-6 mb-4'));
+    echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm h-100'));
+    echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+    echo html_writer::tag('h6', '🔄 ' . get_string('bulkpostshortliststage', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-3'));
+    echo html_writer::div(get_string('multipleroundshelp', 'local_jobportal'), 'text-muted small mb-1');
+    echo html_writer::div(get_string('bulknoterequiredhint', 'local_jobportal'), 'text-muted small mb-3');
+    
+    echo html_writer::start_div('row mb-2');
+    echo html_writer::start_div('col-sm-6 mb-2');
     echo html_writer::select(
         $poststageoptions,
         'stageid',
         '',
         array('' => get_string('selectstage', 'local_jobportal')),
-        array('class' => 'custom-select jp-select-control')
+        array('class' => 'custom-select bg-light border-0 w-100')
     );
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-date');
-    echo html_writer::empty_tag('input', array('type' => 'datetime-local', 'name' => 'scheduleddatetime', 'class' => 'form-control'));
+    echo html_writer::start_div('col-sm-6 mb-2');
+    echo html_writer::empty_tag('input', array('type' => 'datetime-local', 'name' => 'scheduleddatetime', 'class' => 'form-control bg-light border-0'));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
+    echo html_writer::end_div();
+    
+    echo html_writer::start_div('row mb-2');
+    echo html_writer::start_div('col-sm-4 mb-2');
     echo local_jobportal_render_select_with_tooltip(
         $schedulestatusoptions,
         'schedulestatus',
         'scheduled',
         false,
-        array('class' => 'custom-select jp-select-control'),
+        array('class' => 'custom-select bg-light border-0 w-100'),
         get_string('schedulestatus', 'local_jobportal'),
         get_string('schedulestatustooltip', 'local_jobportal')
     );
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
+    echo html_writer::start_div('col-sm-4 mb-2');
     echo local_jobportal_render_select_with_tooltip(
         $roundoutcomeoptions,
         'roundoutcome',
         'pending',
         false,
-        array('class' => 'custom-select jp-select-control'),
+        array('class' => 'custom-select bg-light border-0 w-100'),
         get_string('roundoutcome', 'local_jobportal'),
         get_string('roundoutcometooltip', 'local_jobportal')
     );
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-select');
+    echo html_writer::start_div('col-sm-4 mb-2');
     echo html_writer::select(
         $schedulemodeoptions,
         'schedulemode',
         '',
         array('' => get_string('schedulemode', 'local_jobportal')),
-        array('class' => 'custom-select jp-select-control')
+        array('class' => 'custom-select bg-light border-0 w-100')
     );
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-date');
+    echo html_writer::end_div();
+    
+    echo html_writer::start_div('row mb-2');
+    echo html_writer::start_div('col-sm-6 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'number',
         'name' => 'scheduleduration',
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'min' => 1,
         'step' => 5,
         'placeholder' => get_string('scheduledurationminutes', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-note');
+    echo html_writer::start_div('col-sm-6 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'text',
         'name' => 'schedulelink',
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'placeholder' => get_string('schedulelink', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-col-note');
+    echo html_writer::end_div();
+    
+    echo html_writer::start_div('row mb-2');
+    echo html_writer::start_div('col-sm-6 mb-2');
     echo html_writer::empty_tag('input', array(
         'type' => 'text',
         'name' => 'schedulevenue',
-        'class' => 'form-control',
+        'class' => 'form-control bg-light border-0',
         'placeholder' => get_string('schedulevenue', 'local_jobportal'),
     ));
     echo html_writer::end_div();
-    echo html_writer::end_div();
-    echo html_writer::start_div('jp-inline-row mb-2');
-    echo html_writer::start_div('jp-inline-col-note');
+    echo html_writer::start_div('col-sm-6 mb-2');
     echo html_writer::tag('textarea', '', array(
         'name' => 'stagenote',
-        'rows' => 2,
-        'class' => 'form-control',
+        'rows' => 1,
+        'class' => 'form-control bg-light border-0',
         'placeholder' => get_string('stagenoteplaceholder', 'local_jobportal'),
     ));
     echo html_writer::end_div();
     echo html_writer::end_div();
+    
     echo html_writer::tag(
         'button',
         get_string('updateselectedapplications', 'local_jobportal'),
-        array('type' => 'submit', 'name' => 'action', 'value' => 'bulkchangepoststage', 'class' => 'btn btn-info btn-sm')
+        array('type' => 'submit', 'name' => 'action', 'value' => 'bulkchangepoststage', 'class' => 'btn btn-info jp-action-pill')
     );
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div');
+    echo html_writer::end_tag('div'); // col
+    echo html_writer::end_tag('div'); // row
+    
     if (!empty($schedulableroundstageoptions)) {
-        echo html_writer::tag('h6', get_string('bulkupdateroundevent', 'local_jobportal'), array('class' => 'mt-4'));
-        echo html_writer::div(get_string('bulkupdateroundeventhelp', 'local_jobportal'), 'text-muted small mb-2');
-        echo html_writer::start_div('jp-inline-row mb-2');
-        echo html_writer::start_div('jp-inline-col-select');
+        echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+        echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+        echo html_writer::tag('h6', '📅 ' . get_string('bulkupdateroundevent', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-3'));
+        echo html_writer::div(get_string('bulkupdateroundeventhelp', 'local_jobportal'), 'text-muted small mb-3');
+        
+        echo html_writer::start_div('row mb-2');
+        echo html_writer::start_div('col-sm-6 mb-2');
         echo html_writer::select(
             $schedulableroundstageoptions,
             'round_stageid',
             '',
             array('' => get_string('selectstage', 'local_jobportal')),
-            array('class' => 'custom-select jp-select-control')
+            array('class' => 'custom-select bg-light border-0 w-100')
         );
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-date');
-        echo html_writer::empty_tag('input', array('type' => 'datetime-local', 'name' => 'round_scheduleddatetime', 'class' => 'form-control'));
+        echo html_writer::start_div('col-sm-6 mb-2');
+        echo html_writer::empty_tag('input', array('type' => 'datetime-local', 'name' => 'round_scheduleddatetime', 'class' => 'form-control bg-light border-0'));
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-select');
+        echo html_writer::end_div();
+        
+        echo html_writer::start_div('row mb-2');
+        echo html_writer::start_div('col-sm-3 mb-2');
         echo local_jobportal_render_select_with_tooltip(
             $schedulestatusoptions,
             'round_schedulestatus',
             'scheduled',
             false,
-            array('class' => 'custom-select jp-select-control'),
+            array('class' => 'custom-select bg-light border-0 w-100'),
             get_string('schedulestatus', 'local_jobportal'),
             get_string('schedulestatustooltip', 'local_jobportal')
         );
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-select');
+        echo html_writer::start_div('col-sm-3 mb-2');
         echo local_jobportal_render_select_with_tooltip(
             $roundoutcomeoptions,
             'round_roundoutcome',
             'pending',
             false,
-            array('class' => 'custom-select jp-select-control'),
+            array('class' => 'custom-select bg-light border-0 w-100'),
             get_string('roundoutcome', 'local_jobportal'),
             get_string('roundoutcometooltip', 'local_jobportal')
         );
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-select');
+        echo html_writer::start_div('col-sm-3 mb-2');
         echo html_writer::select(
             $schedulemodeoptions,
             'round_schedulemode',
             '',
             array('' => get_string('schedulemode', 'local_jobportal')),
-            array('class' => 'custom-select jp-select-control')
+            array('class' => 'custom-select bg-light border-0 w-100')
         );
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-date');
+        echo html_writer::start_div('col-sm-3 mb-2');
         echo html_writer::empty_tag('input', array(
             'type' => 'number',
             'name' => 'round_scheduleduration',
-            'class' => 'form-control',
+            'class' => 'form-control bg-light border-0',
             'min' => 1,
             'step' => 5,
             'placeholder' => get_string('scheduledurationminutes', 'local_jobportal'),
         ));
         echo html_writer::end_div();
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-row mb-2');
-        echo html_writer::start_div('jp-inline-col-note');
+        
+        echo html_writer::start_div('row mb-2');
+        echo html_writer::start_div('col-sm-6 mb-2');
         echo html_writer::empty_tag('input', array(
             'type' => 'text',
             'name' => 'round_schedulelink',
-            'class' => 'form-control',
+            'class' => 'form-control bg-light border-0',
             'placeholder' => get_string('schedulelink', 'local_jobportal'),
         ));
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-col-note');
+        echo html_writer::start_div('col-sm-6 mb-2');
         echo html_writer::empty_tag('input', array(
             'type' => 'text',
             'name' => 'round_schedulevenue',
-            'class' => 'form-control',
+            'class' => 'form-control bg-light border-0',
             'placeholder' => get_string('schedulevenue', 'local_jobportal'),
         ));
         echo html_writer::end_div();
         echo html_writer::end_div();
-        echo html_writer::start_div('jp-inline-row mb-2');
-        echo html_writer::start_div('jp-inline-col-note');
+        
+        echo html_writer::start_div('row mb-3');
+        echo html_writer::start_div('col-12');
         echo html_writer::tag('textarea', '', array(
             'name' => 'round_roundnote',
             'rows' => 2,
-            'class' => 'form-control',
+            'class' => 'form-control bg-light border-0',
             'placeholder' => get_string('roundnoteplaceholder', 'local_jobportal'),
         ));
         echo html_writer::end_div();
         echo html_writer::end_div();
+        
         echo html_writer::tag(
             'button',
             get_string('bulkupdateroundevent', 'local_jobportal'),
-            array('type' => 'submit', 'name' => 'action', 'value' => 'bulkupdateroundevent', 'class' => 'btn btn-outline-info btn-sm')
+            array('type' => 'submit', 'name' => 'action', 'value' => 'bulkupdateroundevent', 'class' => 'btn btn-outline-info jp-action-pill')
         );
+        echo html_writer::end_tag('div');
+        echo html_writer::end_tag('div');
     }
         echo html_writer::end_tag('form');
         echo html_writer::end_tag('div');

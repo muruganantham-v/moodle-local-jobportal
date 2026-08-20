@@ -168,109 +168,89 @@ echo local_jobportal_render_navigation(
     )
 );
 
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h4', fullname($student), array('class' => 'card-title mb-1'));
-echo html_writer::tag('p', s($student->email), array('class' => 'text-muted mb-2'));
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
+
+// HERO SECTION
+echo html_writer::start_tag('div', array('class' => 'jp-page-hero mb-4'));
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center');
+
+echo html_writer::start_div('col-md-6');
+echo html_writer::tag('h2', fullname($student), array('class' => 'jp-hero-title mb-1'));
+echo html_writer::tag('p', s($student->email), array('class' => 'jp-hero-subtitle mb-2'));
 echo html_writer::link(
     new moodle_url('/local/jobportal/student_profile.php', array('userid' => (int)$student->id)),
-    get_string('viewstudentprofile', 'local_jobportal'),
-    array('class' => 'btn btn-outline-secondary btn-sm mb-2')
+    '👤 ' . get_string('viewstudentprofile', 'local_jobportal'),
+    array('class' => 'btn btn-outline-light btn-sm jp-action-pill mt-2')
 );
-echo html_writer::tag('p', html_writer::tag('span', $summary->statuslabel, array('class' => $summary->statusbadge)), array('class' => 'mb-2'));
+echo html_writer::end_div();
+
+echo html_writer::start_div('col-md-6 text-md-right mt-3 mt-md-0');
+echo html_writer::tag('div', html_writer::tag('span', $summary->statuslabel, array('class' => $summary->statusbadge)), array('class' => 'mb-3'));
+
 if ($resumedownloadurl) {
+    echo html_writer::start_div('d-flex justify-content-md-end gap-2');
     if ($resumecanpreview && $resumepreviewurl) {
         echo html_writer::tag(
             'button',
-            get_string('previewresume', 'local_jobportal'),
+            '👁️ ' . get_string('previewresume', 'local_jobportal'),
             array(
                 'type' => 'button',
-                'class' => 'btn btn-outline-secondary btn-sm mr-2 jp-resume-preview-trigger',
+                'class' => 'btn btn-outline-light btn-sm jp-resume-preview-trigger',
                 'data-resume-url' => $resumepreviewurl->out(false),
             )
         );
     }
-    echo html_writer::link($resumedownloadurl, get_string('downloadresume', 'local_jobportal'), array(
-        'class' => 'btn btn-outline-primary btn-sm',
+    echo html_writer::link($resumedownloadurl, '⬇️ ' . get_string('downloadresume', 'local_jobportal'), array(
+        'class' => 'btn btn-primary btn-sm',
         'target' => '_blank',
         'rel' => 'noopener',
     ));
+    echo html_writer::end_div();
 } else {
-    echo html_writer::tag('p', get_string('resumenotuploaded', 'local_jobportal'), array('class' => 'alert alert-warning mb-0'));
+    echo html_writer::tag('div', get_string('resumenotuploaded', 'local_jobportal'), array('class' => 'badge badge-warning text-dark px-3 py-2'));
 }
+echo html_writer::end_div();
+
+echo html_writer::end_div(); // row
+echo html_writer::end_div(); // container-fluid
+echo html_writer::end_tag('div'); // jp-page-hero
+
+echo html_writer::start_div('container-fluid');
+
+// Stats Row
+echo html_writer::start_div('row mb-4');
+echo html_writer::start_div('col-md-3');
+echo html_writer::start_div('card bg-light border-0 text-center py-3 jp-stat-card');
+echo html_writer::tag('div', $summary->total, array('class' => 'h2 mb-0 font-weight-bold'));
+echo html_writer::tag('div', get_string('assignedreviewers', 'local_jobportal'), array('class' => 'small text-muted text-uppercase font-weight-bold'));
 echo html_writer::end_div();
 echo html_writer::end_div();
 
-if ($resumecanpreview && $resumepreviewurl) {
-    echo html_writer::start_div('jp-resume-preview-panel card mb-3 d-none w-100', array('id' => 'jp-resume-preview-panel'));
-    echo html_writer::start_div('card-body');
-    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-2');
-    echo html_writer::tag('h5', get_string('previewresume', 'local_jobportal'), array('class' => 'mb-0'));
-    echo html_writer::tag(
-        'button',
-        get_string('close', 'local_jobportal'),
-        array('type' => 'button', 'id' => 'jp-resume-preview-close', 'class' => 'btn btn-sm btn-outline-secondary')
-    );
-    echo html_writer::end_div();
-    echo html_writer::tag('iframe', '', array(
-        'id' => 'jp-resume-preview-frame',
-        'class' => 'jp-resume-preview-frame',
-        'src' => 'about:blank',
-        'title' => get_string('previewresume', 'local_jobportal'),
-    ));
-    echo html_writer::end_div();
-    echo html_writer::end_div();
-}
+echo html_writer::start_div('col-md-3');
+echo html_writer::start_div('card bg-light border-0 text-center py-3 jp-stat-card');
+echo html_writer::tag('div', $summary->approved, array('class' => 'h2 mb-0 font-weight-bold text-success'));
+echo html_writer::tag('div', get_string('approved', 'local_jobportal'), array('class' => 'small text-muted text-uppercase font-weight-bold'));
+echo html_writer::end_div();
+echo html_writer::end_div();
 
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('reviewprogress', 'local_jobportal'), array('class' => 'card-title'));
+echo html_writer::start_div('col-md-3');
+echo html_writer::start_div('card bg-light border-0 text-center py-3 jp-stat-card');
+echo html_writer::tag('div', $summary->pending, array('class' => 'h2 mb-0 font-weight-bold text-warning'));
+echo html_writer::tag('div', get_string('pending', 'local_jobportal'), array('class' => 'small text-muted text-uppercase font-weight-bold'));
+echo html_writer::end_div();
+echo html_writer::end_div();
+
+echo html_writer::start_div('col-md-3');
+echo html_writer::start_div('card bg-light border-0 text-center py-3 jp-stat-card');
+echo html_writer::tag('div', $summary->needsrework, array('class' => 'h2 mb-0 font-weight-bold text-danger'));
+echo html_writer::tag('div', get_string('needsrework', 'local_jobportal'), array('class' => 'small text-muted text-uppercase font-weight-bold'));
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div(); // end stats row
+
 echo html_writer::start_div('row');
-echo html_writer::tag('div', html_writer::div(get_string('reviewersassigned', 'local_jobportal', $summary->total), 'mb-0'), array('class' => 'col-md-3 mb-2'));
-echo html_writer::tag('div', html_writer::div(get_string('reviewapprovedcount', 'local_jobportal', $summary->approved), 'mb-0'), array('class' => 'col-md-3 mb-2'));
-echo html_writer::tag('div', html_writer::div(get_string('reviewpendingcount', 'local_jobportal', $summary->pending), 'mb-0'), array('class' => 'col-md-3 mb-2'));
-echo html_writer::tag('div', html_writer::div(get_string('reviewreworkcount', 'local_jobportal', $summary->needsrework), 'mb-0'), array('class' => 'col-md-3 mb-2'));
-echo html_writer::end_div();
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-if ($canassign) {
-    $revieweroptions = local_jobportal_get_resume_reviewer_options($context);
-
-    echo html_writer::start_div('card mb-3');
-    echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('assignreviewers', 'local_jobportal'), array('class' => 'card-title mb-3'));
-
-    if ($resumedownloadurl) {
-        echo html_writer::start_tag('form', array('method' => 'post', 'action' => $baseurl));
-        echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => 'assignreviewers'));
-        echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
-
-        if (empty($revieweroptions)) {
-            echo html_writer::tag('p', get_string('noreviewersavailable', 'local_jobportal'), array('class' => 'alert alert-warning'));
-        } else {
-            echo html_writer::start_div('list-group mb-3');
-            foreach ($revieweroptions as $reviewerid => $reviewerlabel) {
-                $checked = isset($assignedreviewerids[(int)$reviewerid]);
-                $checkbox = html_writer::checkbox('reviewerids[]', (int)$reviewerid, $checked, '', array('class' => 'mr-2'));
-                echo html_writer::tag(
-                    'label',
-                    $checkbox . s($reviewerlabel),
-                    array('class' => 'list-group-item list-group-item-action mb-0')
-                );
-            }
-            echo html_writer::end_div();
-        }
-
-        echo html_writer::tag('button', get_string('savechanges'), array('type' => 'submit', 'class' => 'btn btn-primary'));
-        echo html_writer::end_tag('form');
-    } else {
-        echo html_writer::tag('p', get_string('resumenotuploaded', 'local_jobportal'), array('class' => 'alert alert-warning mb-0'));
-    }
-
-    echo html_writer::end_div();
-    echo html_writer::end_div();
-}
+echo html_writer::start_div('col-lg-7');
 
 if ($canreview) {
     $mydecision = 'underreview';
@@ -290,9 +270,8 @@ if ($canreview) {
 
     $caneditdecision = $canassign || $currentuserassignment;
 
-    echo html_writer::start_div('card mb-3');
-    echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('reviewerdecision', 'local_jobportal'), array('class' => 'card-title mb-3'));
+    echo html_writer::start_div('jp-form-section mb-4 border-primary');
+    echo html_writer::tag('h5', '✍️ ' . get_string('reviewerdecision', 'local_jobportal'), array('class' => 'font-weight-bold mb-3 text-primary'));
 
     if (!$caneditdecision) {
         echo html_writer::tag('p', get_string('error:notassignedreviewer', 'local_jobportal'), array('class' => 'alert alert-warning mb-0'));
@@ -309,9 +288,8 @@ if ($canreview) {
         echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => 'submitreview'));
         echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
 
-        echo html_writer::start_div('jp-form-card');
-        echo html_writer::start_div('jp-review-inline-row mb-2');
-        echo html_writer::start_div('jp-review-col-decision');
+        echo html_writer::start_div('row mb-3');
+        echo html_writer::start_div('col-md-6');
         echo html_writer::tag('label', get_string('reviewdecision', 'local_jobportal'), array('class' => 'd-block mb-1 font-weight-bold'));
         echo html_writer::select(
             $decisionoptions,
@@ -322,27 +300,36 @@ if ($canreview) {
         );
         echo html_writer::end_div();
 
-        echo html_writer::start_div('jp-review-col-rating');
+        echo html_writer::start_div('col-md-6');
         echo html_writer::tag('label', get_string('resumerating', 'local_jobportal'), array('class' => 'd-block mb-1 font-weight-bold'));
-        echo html_writer::empty_tag('input', array(
-            'type' => 'number',
-            'name' => 'resumerating',
-            'value' => $myrating,
-            'class' => 'form-control',
-            'min' => 1,
-            'max' => 5,
-            'step' => 1,
-            'placeholder' => '1-5',
-            'aria-label' => get_string('resumerating', 'local_jobportal'),
-        ));
+        
+        // Star Rating Widget
+        echo html_writer::start_div('jp-star-rating-widget d-flex flex-row-reverse justify-content-end');
+        for ($i = 5; $i >= 1; $i--) {
+            $checked = ((int)$myrating === $i) ? true : false;
+            echo html_writer::empty_tag('input', array(
+                'type' => 'radio',
+                'name' => 'resumerating',
+                'id' => 'rating-star-' . $i,
+                'value' => $i,
+                'class' => 'd-none jp-star-input',
+                'checked' => $checked ? 'checked' : null,
+            ));
+            echo html_writer::tag('label', '★', array(
+                'for' => 'rating-star-' . $i,
+                'class' => 'jp-star-label mb-0',
+                'title' => $i . ' stars',
+            ));
+        }
         echo html_writer::end_div();
-        echo html_writer::end_div();
+        echo html_writer::end_div(); // col-md-6
+        echo html_writer::end_div(); // row
 
         echo html_writer::start_div('mb-3 w-100');
         echo html_writer::tag('label', get_string('resumefeedback', 'local_jobportal'), array('class' => 'd-block mb-1 font-weight-bold'));
         echo html_writer::tag('textarea', s($myfeedback), array(
             'name' => 'resumefeedback',
-            'rows' => 2,
+            'rows' => 4,
             'class' => 'form-control w-100',
             'placeholder' => get_string('resumefeedbackplaceholder', 'local_jobportal'),
         ));
@@ -351,89 +338,107 @@ if ($canreview) {
         echo html_writer::tag(
             'button',
             get_string('submitreview', 'local_jobportal'),
-            array('type' => 'submit', 'class' => 'jp-btn-gradient')
+            array('type' => 'submit', 'class' => 'btn btn-primary btn-lg jp-action-pill')
         );
-        echo html_writer::end_div();
         echo html_writer::end_tag('form');
     }
+    echo html_writer::end_div(); // jp-form-section
+}
 
-    echo html_writer::end_div();
+echo html_writer::end_div(); // End col-lg-7
+
+// RIGHT COLUMN
+echo html_writer::start_div('col-lg-5');
+echo html_writer::start_div('jp-sticky-sidebar', array('style' => 'position: sticky; top: 20px;'));
+
+if ($canassign) {
+    $revieweroptions = local_jobportal_get_resume_reviewer_options($context);
+
+    echo html_writer::start_div('jp-form-section mb-4 border-info');
+    echo html_writer::tag('h6', '👥 ' . get_string('assignreviewers', 'local_jobportal'), array('class' => 'font-weight-bold mb-3 text-info text-uppercase'));
+
+    if ($resumedownloadurl) {
+        echo html_writer::start_tag('form', array('method' => 'post', 'action' => $baseurl));
+        echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'action', 'value' => 'assignreviewers'));
+        echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sesskey', 'value' => sesskey()));
+
+        if (empty($revieweroptions)) {
+            echo html_writer::tag('p', get_string('noreviewersavailable', 'local_jobportal'), array('class' => 'alert alert-warning small'));
+        } else {
+            echo html_writer::start_div('list-group mb-3 small');
+            foreach ($revieweroptions as $reviewerid => $reviewerlabel) {
+                $checked = isset($assignedreviewerids[(int)$reviewerid]);
+                $checkbox = html_writer::checkbox('reviewerids[]', (int)$reviewerid, $checked, '', array('class' => 'mr-2'));
+                echo html_writer::tag(
+                    'label',
+                    $checkbox . s($reviewerlabel),
+                    array('class' => 'list-group-item list-group-item-action mb-0 px-2 py-1')
+                );
+            }
+            echo html_writer::end_div();
+        }
+
+        echo html_writer::tag('button', get_string('savechanges'), array('type' => 'submit', 'class' => 'btn btn-info btn-sm jp-action-pill'));
+        echo html_writer::end_tag('form');
+    } else {
+        echo html_writer::tag('p', get_string('resumenotuploaded', 'local_jobportal'), array('class' => 'alert alert-warning mb-0 small'));
+    }
     echo html_writer::end_div();
 }
 
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('assignedreviewers', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_div('jp-form-section mb-4');
+echo html_writer::tag('h6', get_string('assignedreviewers', 'local_jobportal'), array('class' => 'font-weight-bold mb-3 text-muted text-uppercase'));
 
 if (empty($assignments)) {
-    echo html_writer::tag('p', get_string('noreviewersassigned', 'local_jobportal'), array('class' => 'text-muted mb-0'));
+    echo html_writer::tag('p', get_string('noreviewersassigned', 'local_jobportal'), array('class' => 'text-muted mb-0 small'));
 } else {
-    $table = new html_table();
-    $table->head = array(
-        get_string('reviewer', 'local_jobportal'),
-        get_string('reviewassignmentstatus', 'local_jobportal'),
-        get_string('timeassigned', 'local_jobportal'),
-        get_string('timereviewed', 'local_jobportal'),
-        get_string('resumerating', 'local_jobportal'),
-        get_string('resumefeedback', 'local_jobportal'),
-    );
-    $table->attributes['class'] = 'table table-sm table-striped table-bordered jp-table jp-data-table jp-assigned-reviewers-table';
-
+    echo html_writer::start_tag('ul', array('class' => 'list-unstyled mb-0 small'));
     foreach ($assignments as $assignment) {
         $assignmentstatus = local_jobportal_normalize_resume_assignment_status($assignment->status);
-        $assignmentlabel = isset($assignmentstatusoptions[$assignmentstatus]) ?
-            $assignmentstatusoptions[$assignmentstatus] : $assignmentstatus;
         $assignmentbadge = local_jobportal_resume_assignment_badge_class($assignmentstatus);
-        $timereviewed = !empty($assignment->timereviewed) ?
-            userdate($assignment->timereviewed, $dateformat) : '-';
-
-        $table->data[] = array(
-            fullname($assignment) . html_writer::div(s($assignment->email), 'text-muted small'),
-            html_writer::tag('span', $assignmentlabel, array('class' => $assignmentbadge)),
-            userdate($assignment->timeassigned, $dateformat),
-            $timereviewed,
-            $assignment->rating === null ? '-' : ((int)$assignment->rating . '/5'),
-            !empty($assignment->feedback) ? s($assignment->feedback) : '-',
-        );
+        
+        echo html_writer::start_tag('li', array('class' => 'mb-3 pb-3 border-bottom'));
+        echo html_writer::start_div('d-flex justify-content-between align-items-center mb-1');
+        echo html_writer::tag('strong', fullname($assignment), array('class' => 'd-block'));
+        echo html_writer::tag('span', '', array('class' => $assignmentbadge));
+        echo html_writer::end_div();
+        
+        if ($assignment->rating !== null) {
+            echo html_writer::tag('div', 'Rating: ' . (int)$assignment->rating . '/5', array('class' => 'font-weight-bold text-warning mb-1'));
+        }
+        if (!empty($assignment->feedback)) {
+            echo html_writer::tag('div', '"' . s($assignment->feedback) . '"', array('class' => 'text-muted font-italic'));
+        }
+        echo html_writer::end_tag('li');
     }
-
-    echo html_writer::table($table);
+    echo html_writer::end_tag('ul');
 }
+echo html_writer::end_div(); // jp-form-section
 
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('resumereviewhistory', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_div('jp-form-section mb-4');
+echo html_writer::tag('h6', get_string('resumereviewhistory', 'local_jobportal'), array('class' => 'font-weight-bold mb-3 text-muted text-uppercase'));
 
 if (empty($history)) {
-    echo html_writer::tag('p', get_string('noreviewhistory', 'local_jobportal'), array('class' => 'text-muted mb-0'));
+    echo html_writer::tag('p', get_string('noreviewhistory', 'local_jobportal'), array('class' => 'text-muted mb-0 small'));
 } else {
-    echo html_writer::start_tag('ul', array('class' => 'list-group list-group-flush'));
-    foreach ($history as $item) {
+    echo html_writer::start_tag('ul', array('class' => 'list-unstyled mb-0 small'));
+    foreach (array_slice($history, 0, 5) as $item) { // show top 5
         $actionkey = 'resumeaction_' . $item->action;
         $actionlabel = get_string_manager()->string_exists($actionkey, 'local_jobportal') ?
             get_string($actionkey, 'local_jobportal') : format_string($item->action);
-        $eventstatus = local_jobportal_normalize_resume_status($item->status);
-        $eventstatuslabel = isset($resumestatusoptions[$eventstatus]) ? $resumestatusoptions[$eventstatus] : $eventstatus;
-
-        $line = userdate($item->timecreated, $dateformat) .
-            ' - ' . s($actionlabel) .
-            ' - ' . s($eventstatuslabel) .
-            ' [' . fullname($item) . ']';
-        if (!empty($item->rating)) {
-            $line .= ' (' . get_string('resumerating', 'local_jobportal') . ': ' . (int)$item->rating . '/5)';
-        }
-        if (!empty($item->feedback)) {
-            $line .= ' - ' . s($item->feedback);
-        }
-        echo html_writer::tag('li', $line, array('class' => 'list-group-item py-1'));
+        
+        echo html_writer::start_tag('li', array('class' => 'mb-2 pb-2 border-bottom'));
+        echo html_writer::tag('strong', userdate($item->timecreated, $dateformat), array('class' => 'd-block text-muted'));
+        echo html_writer::tag('div', s($actionlabel) . ' [' . fullname($item) . ']', array('class' => 'font-weight-bold'));
+        echo html_writer::end_tag('li');
     }
     echo html_writer::end_tag('ul');
 }
 
-echo html_writer::end_div();
-echo html_writer::end_div();
+echo html_writer::end_div(); // jp-form-section
+
+echo html_writer::end_div(); // sticky sidebar
+echo html_writer::end_div(); // end col-lg-5
+echo html_writer::end_div(); // end row
 
 echo $OUTPUT->footer();

@@ -268,113 +268,139 @@ if ($resumecanpreview && $resumepreviewurl) {
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'profile');
 
-echo html_writer::start_div('card mb-3 jp-profile-overview');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('profileoverview', 'local_jobportal'), array('class' => 'card-title mb-3'));
+// Wrap page
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
 
-echo html_writer::start_div('jp-profile-metrics');
-echo html_writer::tag(
-    'div',
-    html_writer::div(get_string('profilecompleteness', 'local_jobportal'), 'jp-profile-metric-label') .
-    html_writer::div($completionpercent . '%', 'jp-profile-metric-value') .
-    html_writer::div($completionlabel, 'jp-profile-metric-note'),
-    array('class' => 'jp-profile-metric')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::div(get_string('resumereviewstatus', 'local_jobportal'), 'jp-profile-metric-label') .
-    html_writer::div(html_writer::tag('span', $statuslabel, array('class' => $statusbadge)), 'jp-profile-metric-value') .
-    html_writer::div(($resumedownloadurl ? get_string('resume', 'local_jobportal') : get_string('resumenotuploaded', 'local_jobportal')), 'jp-profile-metric-note'),
-    array('class' => 'jp-profile-metric')
-);
+// HERO SECTION
+echo html_writer::start_tag('div', array('class' => 'jp-page-hero mb-4'));
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center');
 
-$updatedlabel = '-';
-if (!empty($activeprofile->timemodified)) {
-    $updatedlabel = userdate($activeprofile->timemodified, $datetimeformat);
-}
-$reviewedlabel = '-';
-if (!empty($activeprofile->resumereviewedat)) {
-    $reviewedlabel = userdate($activeprofile->resumereviewedat, $datetimeformat);
-    if ($reviewername !== '') {
-        $reviewedlabel .= ' (' . s($reviewername) . ')';
-    }
-}
-echo html_writer::tag(
-    'div',
-    html_writer::div(get_string('profileupdatedon', 'local_jobportal'), 'jp-profile-metric-label') .
-    html_writer::div($updatedlabel, 'jp-profile-metric-value') .
-    html_writer::div(get_string('lastreviewed', 'local_jobportal') . ': ' . $reviewedlabel, 'jp-profile-metric-note'),
-    array('class' => 'jp-profile-metric')
-);
+echo html_writer::start_div('col-md-8');
+echo html_writer::tag('h2', get_string('myprofile', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+echo html_writer::tag('p', get_string('profileintro', 'local_jobportal'), array('class' => 'jp-hero-subtitle mb-0'));
 echo html_writer::end_div();
 
-echo html_writer::start_div('progress mb-3 jp-profile-progress');
+echo html_writer::start_div('col-md-4 text-md-right mt-3 mt-md-0');
+echo html_writer::tag('div', 'Profile Completeness', array('class' => 'text-white-50 small font-weight-bold mb-1'));
+echo html_writer::start_div('progress mb-1', array('style' => 'height: 10px; background-color: rgba(255,255,255,0.2); border-radius: 999px;'));
 echo html_writer::tag(
     'div',
-    $completionpercent . '%',
+    '',
     array(
-        'class' => 'progress-bar',
+        'class' => 'progress-bar bg-white',
         'role' => 'progressbar',
-        'style' => 'width: ' . $completionpercent . '%;',
+        'style' => 'width: ' . $completionpercent . '%; border-radius: 999px;',
         'aria-valuenow' => $completionpercent,
         'aria-valuemin' => 0,
         'aria-valuemax' => 100,
     )
 );
 echo html_writer::end_div();
-
-echo html_writer::start_div('jp-profile-checklist');
-foreach ($completionchecks as $label => $iscomplete) {
-    $itemclass = $iscomplete ? 'jp-profile-check complete' : 'jp-profile-check';
-    $marker = $iscomplete ? '&#10003;' : '&#9675;';
-    echo html_writer::tag(
-        'div',
-        html_writer::tag('span', $marker, array('class' => 'jp-profile-check-icon', 'aria-hidden' => 'true')) .
-        html_writer::tag('span', s($label), array('class' => 'jp-profile-check-label')),
-        array('class' => $itemclass)
-    );
-}
+echo html_writer::tag('div', $completionpercent . '% - ' . $completionlabel, array('class' => 'text-white small font-weight-bold'));
 echo html_writer::end_div();
 
+echo html_writer::end_div(); // row
+echo html_writer::end_div(); // container-fluid
+echo html_writer::end_tag('div'); // jp-page-hero
+
+// MAIN CONTENT
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row');
+
+// LEFT COLUMN: Form
+echo html_writer::start_div('col-lg-8');
+echo html_writer::start_div('jp-form-section mb-4');
+echo html_writer::tag('h5', '✏️ ' . get_string('editprofile', 'local_jobportal'), array('class' => 'font-weight-bold mb-4'));
+$mform->display();
+echo html_writer::end_div(); // Form Section
+echo html_writer::end_div(); // Left Column
+
+// RIGHT COLUMN: Sticky Sidebar
+echo html_writer::start_div('col-lg-4');
+echo html_writer::start_div('jp-sticky-sidebar', array('style' => 'position: sticky; top: 20px;'));
+
+// Resume Status Section
+echo html_writer::start_div('jp-form-section mb-4');
+echo html_writer::tag('h6', get_string('resumereviewstatus', 'local_jobportal'), array('class' => 'font-weight-bold mb-3 text-muted text-uppercase'));
+
 if (!$resumedownloadurl) {
-    echo html_writer::tag('p', get_string('resumerequirednote', 'local_jobportal'), array('class' => 'alert alert-warning mt-3 mb-0'));
+    echo html_writer::tag('div', '⚠️ ' . get_string('resumerequirednote', 'local_jobportal'), array('class' => 'jp-notification-banner jp-notification-warning mb-3'));
 } else {
-    echo html_writer::start_div('mt-3');
+    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
+    echo html_writer::tag('span', $statuslabel, array('class' => $statusbadge));
     if ($resumecanpreview && $resumepreviewurl) {
         echo html_writer::tag(
             'button',
-            get_string('previewresume', 'local_jobportal'),
+            '👁️ ' . get_string('previewresume', 'local_jobportal'),
             array(
                 'type' => 'button',
-                'class' => 'btn btn-outline-secondary btn-sm mr-2 jp-resume-preview-trigger',
+                'class' => 'btn btn-outline-secondary btn-sm jp-resume-preview-trigger jp-action-pill',
                 'data-resume-url' => $resumepreviewurl->out(false),
             )
         );
     }
+    echo html_writer::end_div();
+    
     echo html_writer::link(
         $resumedownloadurl,
-        get_string('downloadresume', 'local_jobportal'),
-        array('class' => 'btn btn-outline-primary btn-sm')
+        '⬇️ ' . get_string('downloadresume', 'local_jobportal'),
+        array('class' => 'btn btn-outline-primary btn-block jp-action-pill')
     );
-    echo html_writer::end_div();
 }
-echo html_writer::end_div();
-echo html_writer::end_div();
+echo html_writer::end_div(); // Resume Status Section
 
+// History Section
+echo html_writer::start_div('jp-form-section mb-4');
+$historycount = count($history);
+$historytitle = get_string('resumereviewhistory', 'local_jobportal') . ' (' . $historycount . ')';
+echo html_writer::tag('h6', $historytitle, array('class' => 'font-weight-bold mb-3 text-muted text-uppercase'));
+
+if (empty($history)) {
+    echo html_writer::tag('p', get_string('noreviewhistory', 'local_jobportal'), array('class' => 'text-muted mb-0 small'));
+} else {
+    echo html_writer::start_tag('ul', array('class' => 'list-unstyled mb-0 small'));
+    foreach (array_slice($history, 0, 3) as $event) { // Only show top 3 in sidebar
+        $actionkey = 'resumeaction_' . $event->action;
+        $actionlabel = get_string_manager()->string_exists($actionkey, 'local_jobportal') ?
+            get_string($actionkey, 'local_jobportal') : format_string($event->action);
+        
+        echo html_writer::start_tag('li', array('class' => 'mb-3 pb-3 border-bottom'));
+        echo html_writer::tag('strong', userdate($event->timecreated, $datetimeformat), array('class' => 'd-block text-muted'));
+        echo html_writer::tag('div', s($actionlabel), array('class' => 'font-weight-bold'));
+        if (!empty($event->feedback)) {
+            echo html_writer::tag('div', shorten_text(s($event->feedback), 60), array('class' => 'text-muted mt-1'));
+        }
+        echo html_writer::end_tag('li');
+    }
+    echo html_writer::end_tag('ul');
+    if ($historycount > 3) {
+        echo html_writer::tag('div', '+ ' . ($historycount - 3) . ' more (see full history in manager view)', array('class' => 'text-muted text-center mt-2'));
+    }
+}
+echo html_writer::end_div(); // History Section
+
+echo html_writer::end_div(); // Sticky Sidebar
+echo html_writer::end_div(); // Right Column
+
+echo html_writer::end_div(); // Row
+echo html_writer::end_div(); // Container
+
+// Resume Preview Modal (Hidden by default)
 if ($resumecanpreview && $resumepreviewurl) {
-    echo html_writer::start_div('jp-resume-preview-panel card mb-3 d-none w-100', array('id' => 'jp-resume-preview-panel'));
-    echo html_writer::start_div('card-body');
-    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-2');
+    echo html_writer::start_div('jp-resume-preview-panel card d-none', array('id' => 'jp-resume-preview-panel', 'style' => 'position: fixed; top: 10%; left: 10%; width: 80%; height: 80%; z-index: 1050; box-shadow: 0 10px 40px rgba(0,0,0,0.3); border-radius: 12px; overflow: hidden;'));
+    echo html_writer::start_div('card-header bg-dark text-white d-flex justify-content-between align-items-center');
     echo html_writer::tag('h5', get_string('previewresume', 'local_jobportal'), array('class' => 'mb-0'));
     echo html_writer::tag(
         'button',
-        get_string('close', 'local_jobportal'),
-        array('type' => 'button', 'id' => 'jp-resume-preview-close', 'class' => 'btn btn-sm btn-outline-secondary')
+        '✕',
+        array('type' => 'button', 'id' => 'jp-resume-preview-close', 'class' => 'btn btn-sm btn-outline-light border-0')
     );
     echo html_writer::end_div();
+    echo html_writer::start_div('card-body p-0', array('style' => 'height: calc(100% - 55px);'));
     echo html_writer::tag('iframe', '', array(
         'id' => 'jp-resume-preview-frame',
-        'class' => 'jp-resume-preview-frame',
+        'class' => 'w-100 h-100 border-0',
         'src' => 'about:blank',
         'title' => get_string('previewresume', 'local_jobportal'),
     ));
@@ -382,63 +408,6 @@ if ($resumecanpreview && $resumepreviewurl) {
     echo html_writer::end_div();
 }
 
-echo html_writer::start_div('card mb-3');
-echo html_writer::start_div('card-body');
-$historycount = count($history);
-$historytitle = get_string('resumereviewhistory', 'local_jobportal') . ' (' . $historycount . ')';
-echo html_writer::start_tag('details', array('class' => 'jp-collapsible-history'));
-echo html_writer::tag('summary', s($historytitle), array('class' => 'jp-collapsible-summary'));
-echo html_writer::start_div('pt-2');
-
-if (empty($history)) {
-    echo html_writer::tag('p', get_string('noreviewhistory', 'local_jobportal'), array('class' => 'text-muted mb-0'));
-} else {
-    $historytable = new html_table();
-    $historytable->attributes['class'] = 'table table-sm table-striped table-bordered mb-0 jp-table jp-data-table jp-profile-history-table';
-    $historytable->head = array(
-        get_string('reviewdate', 'local_jobportal'),
-        get_string('actions', 'local_jobportal'),
-        get_string('status', 'local_jobportal'),
-    );
-    if ($canseerevieweridentity) {
-        $historytable->head[] = get_string('reviewer', 'local_jobportal');
-    }
-    $historytable->head[] = get_string('resumerating', 'local_jobportal');
-    $historytable->head[] = get_string('resumefeedback', 'local_jobportal');
-
-    foreach ($history as $event) {
-        $actionkey = 'resumeaction_' . $event->action;
-        $actionlabel = get_string_manager()->string_exists($actionkey, 'local_jobportal') ?
-            get_string($actionkey, 'local_jobportal') : format_string($event->action);
-        $eventstatus = local_jobportal_normalize_resume_status($event->status);
-        $eventstatuslabel = isset($resumestatusoptions[$eventstatus]) ? $resumestatusoptions[$eventstatus] : $eventstatus;
-
-        $row = array(
-            userdate($event->timecreated, $datetimeformat),
-            s($actionlabel),
-            s($eventstatuslabel),
-        );
-        if ($canseerevieweridentity) {
-            $row[] = fullname($event);
-        }
-        $row[] = $event->rating === null ? '-' : ((int)$event->rating . '/5');
-        $row[] = !empty($event->feedback) ? s($event->feedback) : '-';
-        $historytable->data[] = $row;
-    }
-
-    echo html_writer::table($historytable);
-    echo html_writer::tag('p', get_string('resumereviewhistorylatest', 'local_jobportal'), array('class' => 'text-muted small mb-0 mt-2'));
-}
-echo html_writer::end_div();
-echo html_writer::end_tag('details');
-echo html_writer::end_div();
-echo html_writer::end_div();
-
-echo html_writer::start_div('card mb-3 jp-profile-form-card');
-echo html_writer::start_div('card-body');
-echo html_writer::tag('h5', get_string('editprofile', 'local_jobportal'), array('class' => 'card-title mb-3'));
-$mform->display();
-echo html_writer::end_div();
-echo html_writer::end_div();
+echo html_writer::end_tag('div'); // page wrapper
 
 echo $OUTPUT->footer();

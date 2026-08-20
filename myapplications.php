@@ -30,38 +30,48 @@ $datetimeformat = '%d/%m/%Y %H:%M';
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'myapplications');
 
-// Get user's applications
-$totalapplications = (int)$DB->count_records('local_jobportal_applications', array('userid' => $USER->id));
-$offerhighlight = local_jobportal_get_student_offer_highlight((int)$USER->id);
-$sql = "SELECT a.*, j.title, j.company, j.location, j.timecreated AS joblistedon
-        FROM {local_jobportal_applications} a
-        JOIN {local_jobportal_jobs} j ON a.jobid = j.id
-        WHERE a.userid = :userid
-        ORDER BY a.timecreated DESC";
+// Wrap page
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
 
-$applications = $DB->get_records_sql($sql, array('userid' => $USER->id), $page * $perpage, $perpage);
-$stages = local_jobportal_get_recruitment_stages(false);
-$eventsbyapp = array();
+// Calculate Stats
+$stats = $DB->get_record_sql("
+    SELECT
+        COUNT(id) AS total,
+        SUM(CASE WHEN shortliststatus = 'shortlisted' THEN 1 ELSE 0 END) AS shortlisted
+    FROM {local_jobportal_applications}
+    WHERE userid = :userid
+", array('userid' => $USER->id));
+$totalapps = $stats->total ?? 0;
+$shortlistedapps = $stats->shortlisted ?? 0;
 
-if (!empty($applications)) {
-    $appids = array_keys($applications);
-    list($insql, $params) = $DB->get_in_or_equal($appids, SQL_PARAMS_NAMED);
+// HERO SECTION
+echo html_writer::start_tag('div', array('class' => 'jp-page-hero mb-4'));
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center');
 
-    $eventsql = "SELECT e.id, e.applicationid, e.stageid, e.scheduledat, e.schedulestatus, e.roundoutcome, e.schedulemode,
-                        e.schedulelink, e.schedulevenue, e.scheduleduration, e.timecreated,
-                        s.shortname, s.displayname, s.isinternal, s.hasscheduledate
-                   FROM {local_jobportal_appstage_events} e
-                   JOIN {local_jobportal_stages} s ON s.id = e.stageid
-                  WHERE e.applicationid $insql
-               ORDER BY e.timecreated ASC, e.id ASC";
-    $events = $DB->get_records_sql($eventsql, $params);
-    foreach ($events as $event) {
-        if (!isset($eventsbyapp[$event->applicationid])) {
-            $eventsbyapp[$event->applicationid] = array();
-        }
-        $eventsbyapp[$event->applicationid][] = $event;
-    }
-}
+echo html_writer::start_div('col-md-6');
+echo html_writer::tag('h2', get_string('myapplications', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+echo html_writer::tag('p', 'Track your job applications and recruitment progress.', array('class' => 'jp-hero-subtitle mb-0'));
+echo html_writer::end_div();
+
+echo html_writer::start_div('col-md-6 text-md-right mt-3 mt-md-0');
+echo html_writer::start_div('d-flex justify-content-md-end gap-3');
+echo html_writer::start_div('text-center px-3 border-right border-white-50');
+echo html_writer::tag('div', $totalapps, array('class' => 'h3 text-white mb-0 font-weight-bold'));
+echo html_writer::tag('div', 'Total Applied', array('class' => 'small text-white-50 text-uppercase font-weight-bold'));
+echo html_writer::end_div();
+echo html_writer::start_div('text-center px-3');
+echo html_writer::tag('div', $shortlistedapps, array('class' => 'h3 text-success mb-0 font-weight-bold'));
+echo html_writer::tag('div', 'Shortlisted', array('class' => 'small text-white-50 text-uppercase font-weight-bold'));
+echo html_writer::end_div();
+echo html_writer::end_div(); // d-flex
+echo html_writer::end_div(); // col-md-6
+
+echo html_writer::end_div(); // row
+echo html_writer::end_div(); // container-fluid
+echo html_writer::end_tag('div'); // jp-page-hero
+
+echo html_writer::start_div('container-fluid');
 
 if (!empty($offerhighlight->hasoffer)) {
     $statusclass = preg_replace('/[^a-z0-9_-]/i', '', (string)$offerhighlight->status);
@@ -75,19 +85,12 @@ if (!empty($offerhighlight->hasoffer)) {
     $jobtitle = format_string($offerhighlight->jobtitle);
     $updated = !empty($offerhighlight->timemodified) ? userdate((int)$offerhighlight->timemodified, $datetimeformat) : '-';
     $statusbadge = html_writer::tag('span', $offerhighlight->statuslabel, array(
-        'class' => 'jp-offer-status-inline jp-offer-status-inline--' . $statusclass,
+        'class' => 'badge badge-light',
     ));
 
-    echo html_writer::start_div('jp-offer-banner jp-offer-global-banner ' . $toneclass . ' mb-3');
-    echo html_writer::start_div('jp-offer-banner-main');
-    echo html_writer::start_div('jp-offer-banner-left');
-    echo html_writer::div($jobtitle . ($jobcompany !== '' ? ' | ' . $jobcompany : '') . ' ' . $statusbadge, 'jp-offer-banner-job');
-    if ($emotionhtml !== '') {
-        echo html_writer::div($emotionhtml, 'jp-offer-banner-emotion jp-offer-banner-emotion--' . $statusclass);
-    }
-    echo html_writer::div(get_string('offerhighlightupdated', 'local_jobportal', $updated), 'jp-offer-banner-meta');
-    echo html_writer::end_div();
-    echo html_writer::end_div();
+    echo html_writer::start_div('jp-notification-banner mb-4');
+    echo html_writer::tag('div', '🎉 ' . $jobtitle . ($jobcompany !== '' ? ' | ' . $jobcompany : '') . ' - ' . $statusbadge, array('class' => 'font-weight-bold'));
+    echo html_writer::tag('div', get_string('offerhighlightupdated', 'local_jobportal', $updated), array('class' => 'small mt-1'));
     echo html_writer::end_div();
 }
 
@@ -372,7 +375,10 @@ echo html_writer::div(
         new moodle_url('/local/jobportal/index.php'),
         '← ' . get_string('alljobs', 'local_jobportal')
     ),
-    'mt-3'
+    'mt-3 mb-4'
 );
+
+echo html_writer::end_div(); // End container-fluid
+echo html_writer::end_tag('div'); // End local-jobportal-page
 
 echo $OUTPUT->footer();

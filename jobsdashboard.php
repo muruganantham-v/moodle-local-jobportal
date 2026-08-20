@@ -391,46 +391,77 @@ if (!isset($staledaysoptions[$staledays])) {
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'jobsdashboard');
 
-echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-echo html_writer::start_tag('div', array('class' => 'card-body'));
-echo html_writer::tag('h4', get_string('jobpostsoverview', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_tag('div', array('class' => 'local-jobportal-page'));
+echo html_writer::start_div('jp-page-hero mb-4');
+echo html_writer::start_div('container-fluid');
+echo html_writer::start_div('row align-items-center mb-4');
+echo html_writer::start_div('col-md-6');
+echo html_writer::tag('h2', get_string('jobpostsdashboard', 'local_jobportal'), array('class' => 'jp-hero-title mb-2'));
+echo html_writer::tag('p', 'Monitor and analyze job posting performance.', array('class' => 'jp-hero-subtitle mb-0'));
+echo html_writer::end_div();
+echo html_writer::start_div('col-md-6 text-md-right mt-3 mt-md-0');
+echo html_writer::link(new moodle_url('/local/jobportal/dashboard.php'), '📈 View Main Dashboard', array('class' => 'btn btn-outline-light jp-action-pill'));
+echo html_writer::end_div();
+echo html_writer::end_div();
 
-echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'mb-3'));
+echo html_writer::start_div('d-flex flex-wrap gap-3 mb-2');
+$topstats = [
+    ['label' => get_string('totaljobs', 'local_jobportal'), 'count' => $overview['totaljobs'], 'color' => 'text-white'],
+    ['label' => get_string('activejobs', 'local_jobportal'), 'count' => $overview['activejobs'], 'color' => 'text-success'],
+    ['label' => get_string('expiringjobs7days', 'local_jobportal'), 'count' => $overview['expiringjobs'], 'color' => 'text-warning'],
+    ['label' => get_string('jobswithnoapplications', 'local_jobportal'), 'count' => $overview['noappjobs'], 'color' => 'text-danger'],
+];
+foreach ($topstats as $idx => $stat) {
+    if ($idx > 0) {
+        echo html_writer::div('', 'border-right border-white-50 mx-2');
+    }
+    echo html_writer::start_div('text-center px-3');
+    echo html_writer::tag('div', (int)$stat['count'], array('class' => 'h3 mb-0 font-weight-bold ' . $stat['color']));
+    echo html_writer::tag('div', $stat['label'], array('class' => 'small text-white-50 text-uppercase font-weight-bold'));
+    echo html_writer::end_div();
+}
+echo html_writer::end_div();
+echo html_writer::end_div();
+echo html_writer::end_div(); // jp-page-hero
+
+echo html_writer::start_div('container-fluid pb-4');
+
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+
+echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'mb-0'));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sortby', 'value' => $sortby));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sortdir', 'value' => $sortdir));
-echo html_writer::start_tag('div', array('class' => 'row'));
 
+echo html_writer::start_tag('div', array('class' => 'row align-items-center mb-3'));
 echo html_writer::start_tag('div', array('class' => 'col-md-3 mb-2'));
 echo html_writer::empty_tag('input', array(
     'type' => 'text',
     'name' => 'search',
     'value' => $search,
     'placeholder' => get_string('search'),
-    'class' => 'form-control',
+    'class' => 'form-control bg-light border-0',
 ));
 echo html_writer::end_tag('div');
-
 echo html_writer::start_tag('div', array('class' => 'col-md-3 mb-2'));
-echo html_writer::select($companyoptions, 'companyid', $companyid, false, array('class' => 'custom-select'));
+echo html_writer::select($companyoptions, 'companyid', $companyid, false, array('class' => 'custom-select bg-light border-0'));
 echo html_writer::end_tag('div');
-
 echo html_writer::start_tag('div', array('class' => 'col-md-2 mb-2'));
-echo html_writer::select($statusoptions, 'jobstatus', $jobstatus, false, array('class' => 'custom-select'));
+echo html_writer::select($statusoptions, 'jobstatus', $jobstatus, false, array('class' => 'custom-select bg-light border-0'));
 echo html_writer::end_tag('div');
-
 echo html_writer::start_tag('div', array('class' => 'col-md-2 mb-2'));
-echo html_writer::select($listeddaysoptions, 'listeddays', $listeddays, false, array('class' => 'custom-select'));
+echo html_writer::select($listeddaysoptions, 'listeddays', $listeddays, false, array('class' => 'custom-select bg-light border-0'));
 echo html_writer::end_tag('div');
-
 echo html_writer::start_tag('div', array('class' => 'col-md-2 mb-2'));
-echo html_writer::select($staledaysoptions, 'staledays', $staledays, false, array('class' => 'custom-select'));
+echo html_writer::select($staledaysoptions, 'staledays', $staledays, false, array('class' => 'custom-select bg-light border-0'));
+echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
 
-echo html_writer::end_tag('div');
-echo html_writer::start_tag('details', array('class' => 'jp-column-picker mb-2'));
-echo html_writer::tag('summary', get_string('selectcolumns', 'local_jobportal'));
+echo html_writer::start_div('d-flex gap-2');
+echo html_writer::start_tag('details', array('class' => 'jp-column-picker flex-grow-1'));
+echo html_writer::tag('summary', get_string('selectcolumns', 'local_jobportal'), array('class' => 'btn btn-outline-secondary btn-sm h-100'));
 foreach ($columngroups as $grouplabel => $keys) {
-    echo html_writer::tag('div', $grouplabel, array('class' => 'jp-column-group-title'));
+    echo html_writer::tag('div', $grouplabel, array('class' => 'jp-column-group-title mt-2'));
     foreach ($keys as $key) {
         if (!isset($columnoptions[$key])) {
             continue;
@@ -442,55 +473,17 @@ foreach ($columngroups as $grouplabel => $keys) {
     }
 }
 echo html_writer::end_tag('details');
-echo html_writer::tag('button', get_string('filter'), array('type' => 'submit', 'class' => 'btn btn-sm btn-outline-primary mr-2'));
-echo html_writer::link($baseurl, get_string('resetfilters', 'local_jobportal'), array('class' => 'btn btn-sm btn-outline-secondary'));
+echo html_writer::tag('button', get_string('filter'), array('type' => 'submit', 'class' => 'btn btn-primary px-4 jp-action-pill'));
+echo html_writer::link($baseurl, '✖', array('class' => 'btn btn-outline-secondary jp-action-pill'));
+echo html_writer::end_div();
+
 echo html_writer::end_tag('form');
-
-echo html_writer::start_tag('div', array('class' => 'row'));
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('totaljobs', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['totaljobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('activejobs', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['activejobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('closedjobs', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['closedjobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('expiringjobs7days', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['expiringjobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('jobswithnoapplications', 'local_jobportal'), array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['noappjobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::tag(
-    'div',
-    html_writer::tag('div', get_string('stalejobs', 'local_jobportal') . ' (' . (int)$staledays . 'd)', array('class' => 'text-muted')) .
-    html_writer::tag('div', $overview['stalejobs'], array('class' => 'h4 mb-0')),
-    array('class' => 'col-md-2 col-sm-4 mb-2')
-);
-echo html_writer::end_tag('div');
-
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
 
-echo html_writer::start_tag('div', array('class' => 'card mb-3'));
-echo html_writer::start_tag('div', array('class' => 'card-body'));
-echo html_writer::tag('h4', get_string('jobperformance', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::tag('h5', '💼 ' . get_string('jobperformance', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-4'));
 
 if (empty($filteredjobs)) {
     echo html_writer::tag('p', get_string('nodataavailable', 'local_jobportal'), array('class' => 'text-muted mb-0'));

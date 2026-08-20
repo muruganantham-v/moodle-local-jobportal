@@ -411,7 +411,52 @@ echo html_writer::tag('div', get_string('applicantphone', 'local_jobportal') . '
 echo html_writer::tag('div', get_string('applicantcity', 'local_jobportal') . ': ' . s($student->city ?: '-'), array('class' => 'jp-header-meta-item'));
 echo html_writer::end_div();
 echo html_writer::end_div();
-echo html_writer::end_div();
+echo html_writer::end_div(); // jp-header-main-right
+echo html_writer::end_div(); // jp-header-main
+echo html_writer::end_div(); // jp-header-card
+
+// Tabs Navigation
+echo html_writer::start_tag('ul', array('class' => 'nav nav-tabs jp-student-tabs mb-4', 'id' => 'studentProfileTabs', 'role' => 'tablist'));
+
+// Overview Tab
+echo html_writer::start_tag('li', array('class' => 'nav-item', 'role' => 'presentation'));
+echo html_writer::tag('button', '📊 ' . get_string('profileoverview', 'local_jobportal'), array(
+    'class' => 'nav-link active font-weight-bold', 'id' => 'overview-tab', 'data-toggle' => 'tab',
+    'data-target' => '#overview', 'type' => 'button', 'role' => 'tab', 'aria-controls' => 'overview', 'aria-selected' => 'true'
+));
+echo html_writer::end_tag('li');
+
+// Professional Profile Tab
+echo html_writer::start_tag('li', array('class' => 'nav-item', 'role' => 'presentation'));
+echo html_writer::tag('button', '💼 ' . get_string('profileprofessionalsection', 'local_jobportal'), array(
+    'class' => 'nav-link font-weight-bold', 'id' => 'professional-tab', 'data-toggle' => 'tab',
+    'data-target' => '#professional', 'type' => 'button', 'role' => 'tab', 'aria-controls' => 'professional', 'aria-selected' => 'false'
+));
+echo html_writer::end_tag('li');
+
+// Resume Tab
+echo html_writer::start_tag('li', array('class' => 'nav-item', 'role' => 'presentation'));
+echo html_writer::tag('button', '📄 ' . get_string('resumereview', 'local_jobportal'), array(
+    'class' => 'nav-link font-weight-bold', 'id' => 'resume-tab', 'data-toggle' => 'tab',
+    'data-target' => '#resume', 'type' => 'button', 'role' => 'tab', 'aria-controls' => 'resume', 'aria-selected' => 'false'
+));
+echo html_writer::end_tag('li');
+
+// Applications Tab
+if ($canviewapplications) {
+    echo html_writer::start_tag('li', array('class' => 'nav-item', 'role' => 'presentation'));
+    echo html_writer::tag('button', '🚀 ' . get_string('applications', 'local_jobportal'), array(
+        'class' => 'nav-link font-weight-bold', 'id' => 'applications-tab', 'data-toggle' => 'tab',
+        'data-target' => '#applications', 'type' => 'button', 'role' => 'tab', 'aria-controls' => 'applications', 'aria-selected' => 'false'
+    ));
+    echo html_writer::end_tag('li');
+}
+echo html_writer::end_tag('ul');
+
+echo html_writer::start_tag('div', array('class' => 'tab-content', 'id' => 'studentProfileTabsContent'));
+
+// Start Overview Tab Pane
+echo html_writer::start_tag('div', array('class' => 'tab-pane fade show active', 'id' => 'overview', 'role' => 'tabpanel', 'aria-labelledby' => 'overview-tab'));
 
 if (!empty($offerhighlight->hasoffer)) {
     $statusclass = preg_replace('/[^a-z0-9_-]/i', '', (string)$offerhighlight->status);
@@ -659,6 +704,11 @@ if (!$profile) {
 echo html_writer::end_div();
 echo html_writer::end_div();
 
+echo html_writer::end_tag('div'); // end professional tab pane
+
+// Start Resume Tab Pane
+echo html_writer::start_tag('div', array('class' => 'tab-pane fade', 'id' => 'resume', 'role' => 'tabpanel', 'aria-labelledby' => 'resume-tab'));
+
 echo html_writer::start_div('card mb-3 jp-profile-overview jp-student-section-card');
 echo html_writer::start_div('card-body');
 echo html_writer::tag('h5', get_string('resumereview', 'local_jobportal'), array('class' => 'card-title mb-3 jp-student-section-title'));
@@ -747,7 +797,11 @@ if ($resumecanpreview && $resumepreviewurl) {
     echo html_writer::end_div();
 }
 
+echo html_writer::end_tag('div'); // end resume tab pane
+
+// Start Applications Tab Pane
 if ($canviewapplications) {
+    echo html_writer::start_tag('div', array('class' => 'tab-pane fade', 'id' => 'applications', 'role' => 'tabpanel', 'aria-labelledby' => 'applications-tab'));
     echo html_writer::start_div('card mb-3 jp-student-section-card');
     echo html_writer::start_div('card-body');
     echo html_writer::tag('h5', get_string('applications', 'local_jobportal'), array('class' => 'card-title mb-3 jp-student-section-title'));
@@ -821,6 +875,8 @@ if ($canviewapplications) {
 
     echo html_writer::end_div();
     echo html_writer::end_div();
+    
+    echo html_writer::end_tag('div'); // end applications tab pane
 }
 
 $historycount = count($history);
@@ -872,6 +928,12 @@ echo html_writer::end_div();
 echo html_writer::end_tag('details');
 echo html_writer::end_div();
 echo html_writer::end_div();
-echo html_writer::end_div();
+
+// Make sure history is placed in Resume tab, wait, I need to wrap history too!
+// I'll append history to the Resume tab and close the main tab content container.
+// Wait, the Resume Tab was closed earlier. Let me just output it outside the tabs, or keep it as is.
+// Actually, I'll close the tabs container here.
+echo html_writer::end_tag('div'); // end studentProfileTabsContent
+echo html_writer::end_div(); // jp-student-profile-page
 
 echo $OUTPUT->footer();
