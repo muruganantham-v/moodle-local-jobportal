@@ -426,8 +426,32 @@ echo html_writer::end_div(); // jp-page-hero
 
 echo html_writer::start_div('container-fluid pb-4');
 
-echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+$activejobsdashfilterscount = ($search !== '' ? 1 : 0) + (!empty($companyid) ? 1 : 0) + ($jobstatus !== 'all' ? 1 : 0) + ($listeddays !== 'all' ? 1 : 0) + ($staledays !== 'all' ? 1 : 0);
+echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4 jp-filter-card', 'id' => 'jp-jobsdash-filter-card'));
 echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
+echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
+echo html_writer::start_div('d-flex align-items-center gap-2');
+echo html_writer::tag('h5', '🔍 ' . get_string('jobfilters', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-0'));
+if ($activejobsdashfilterscount > 0) {
+    echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', $activejobsdashfilterscount), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
+}
+echo html_writer::end_div();
+echo html_writer::tag(
+    'button',
+    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+    array(
+        'type' => 'button',
+        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+        'data-target' => '#jp-jobsdash-filter-content-wrap',
+        'data-storage-key' => 'jp_jobsdash_filters_hidden',
+        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
+        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+        'aria-expanded' => 'true',
+    )
+);
+echo html_writer::end_div();
+
+echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-jobsdash-filter-content-wrap'));
 
 echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'mb-0'));
 echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'sortby', 'value' => $sortby));
@@ -478,6 +502,7 @@ echo html_writer::link($baseurl, '✖', array('class' => 'btn btn-outline-second
 echo html_writer::end_div();
 
 echo html_writer::end_tag('form');
+echo html_writer::end_div(); // jp-filter-content-wrap
 echo html_writer::end_tag('div');
 echo html_writer::end_tag('div');
 

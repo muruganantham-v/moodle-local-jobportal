@@ -2579,6 +2579,7 @@ function local_jobportal_require_styles() {
     global $PAGE;
 
     $PAGE->requires->css(new moodle_url('/local/jobportal/styles.css'));
+    $PAGE->requires->js_call_amd('local_jobportal/filters_toggle', 'init');
 }
 
 /**

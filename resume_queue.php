@@ -128,7 +128,31 @@ foreach ($stat_items as $idx => $stat) {
 echo html_writer::end_div(); // stats flex
 
 // Filter Bar
-echo html_writer::start_div('jp-form-card p-3');
+$activeresumefilterscount = ($search !== '' ? 1 : 0) + ($statusfilter !== 'all' ? 1 : 0);
+echo html_writer::start_div('jp-form-card p-3 jp-filter-card', array('id' => 'jp-resume-filter-card'));
+echo html_writer::start_div('d-flex justify-content-between align-items-center mb-2');
+echo html_writer::start_div('d-flex align-items-center gap-2');
+echo html_writer::tag('h6', '🔍 ' . get_string('filter', 'moodle'), array('class' => 'font-weight-bold mb-0 text-dark'));
+if ($activeresumefilterscount > 0) {
+    echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', $activeresumefilterscount), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
+}
+echo html_writer::end_div();
+echo html_writer::tag(
+    'button',
+    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+    array(
+        'type' => 'button',
+        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+        'data-target' => '#jp-resume-filter-content-wrap',
+        'data-storage-key' => 'jp_resume_filters_hidden',
+        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
+        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+        'aria-expanded' => 'true',
+    )
+);
+echo html_writer::end_div();
+
+echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-resume-filter-content-wrap'));
 echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'mb-0'));
 echo html_writer::start_div('row align-items-center');
 echo html_writer::start_div('col-md-5 mb-2 mb-md-0');
@@ -151,6 +175,7 @@ if ($search !== '' || $statusfilter !== 'all') {
 echo html_writer::end_div();
 echo html_writer::end_div();
 echo html_writer::end_tag('form');
+echo html_writer::end_div(); // jp-filter-content-wrap
 echo html_writer::end_div(); // jp-form-card
 
 echo html_writer::end_div(); // container-fluid

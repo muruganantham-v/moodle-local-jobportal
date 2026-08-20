@@ -640,6 +640,31 @@ $filterappliedtoraw = trim(optional_param('filterappliedto', '', PARAM_RAW_TRIMM
 $filterinactivefordaysraw = trim(optional_param('filterinactivefordays', '', PARAM_RAW_TRIMMED));
 $appsort = optional_param('appsort', 'appliedon', PARAM_ALPHANUMEXT);
 $appsortdir = core_text::strtolower(trim(optional_param('appsortdir', 'desc', PARAM_ALPHA)));
+$activeappfilterscount = 0;
+if ($appsearch !== '') {
+    $activeappfilterscount++;
+}
+if ($filtershortlist !== 'all') {
+    $activeappfilterscount++;
+}
+if ($filterpoststage !== 'all') {
+    $activeappfilterscount++;
+}
+if ($filterresumestatus !== 'all') {
+    $activeappfilterscount++;
+}
+if ($filterhasresume !== 'all') {
+    $activeappfilterscount++;
+}
+if ($filterappliedfromraw !== '') {
+    $activeappfilterscount++;
+}
+if ($filterappliedtoraw !== '') {
+    $activeappfilterscount++;
+}
+if ($filterinactivefordaysraw !== '') {
+    $activeappfilterscount++;
+}
 if ($page < 0) {
     $page = 0;
 }
@@ -1567,9 +1592,31 @@ if (empty($applications)) {
 
     $resetfilterurl = new moodle_url('/local/jobportal/applications.php', array('jobid' => $jobid));
     
-    echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4'));
+    echo html_writer::start_tag('div', array('class' => 'card jp-form-section border-0 shadow-sm mb-4 jp-filter-card', 'id' => 'jp-apps-filter-card'));
     echo html_writer::start_tag('div', array('class' => 'card-body p-4'));
-    echo html_writer::tag('h5', '🔍 ' . get_string('applicantfilters', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-3'));
+    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
+    echo html_writer::start_div('d-flex align-items-center gap-2');
+    echo html_writer::tag('h5', '🔍 ' . get_string('applicantfilters', 'local_jobportal'), array('class' => 'card-title font-weight-bold mb-0'));
+    if ($activeappfilterscount > 0) {
+        echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', $activeappfilterscount), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
+    }
+    echo html_writer::end_div();
+    echo html_writer::tag(
+        'button',
+        '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+        array(
+            'type' => 'button',
+            'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+            'data-target' => '#jp-apps-filter-content-wrap',
+            'data-storage-key' => 'jp_apps_filters_hidden',
+            'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
+            'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+            'aria-expanded' => 'true',
+        )
+    );
+    echo html_writer::end_div();
+
+    echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-apps-filter-content-wrap'));
 
     echo html_writer::start_tag('form', array('method' => 'get', 'action' => $pageactionurl, 'class' => 'mb-0'));
     echo html_writer::empty_tag('input', array('type' => 'hidden', 'name' => 'jobid', 'value' => $jobid));
@@ -1645,6 +1692,7 @@ if (empty($applications)) {
     echo html_writer::end_div();
     
     echo html_writer::end_tag('form');
+    echo html_writer::end_div(); // end jp-apps-filter-content-wrap
     echo html_writer::end_tag('div');
     echo html_writer::end_tag('div');
 

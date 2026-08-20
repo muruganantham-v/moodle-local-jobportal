@@ -1356,6 +1356,34 @@ table.jp-table tbody tr:hover {
 }
 .jp-filter-card {
     border-left: 4px solid #4e73df;
+    transition: all 0.25s ease-in-out;
+}
+.jp-toggle-filters-btn {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    transition: all 0.2s ease-in-out;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    line-height: 1.3;
+}
+.jp-toggle-filters-btn:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.jp-filter-content-wrap {
+    transition: max-height 0.3s ease, opacity 0.25s ease;
+}
+.jp-filter-content-wrap.jp-collapsed {
+    display: none !important;
+}
+.jp-filter-active-count {
+    font-size: 0.75rem;
+    padding: 0.25em 0.65em;
+    border-radius: 12px;
+    font-weight: 600;
 }
 .jp-sticky-filters {
     position: sticky;

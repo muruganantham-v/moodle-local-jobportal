@@ -90,14 +90,31 @@ $resumestatusoptions = local_jobportal_get_resume_status_options();
 echo $OUTPUT->header();
 echo local_jobportal_render_navigation($context, 'myresumereviews');
 
-echo html_writer::start_div('card mb-3');
+echo html_writer::start_div('card mb-3 jp-filter-card', array('id' => 'jp-myreviews-filter-card'));
 echo html_writer::start_div('card-body');
-echo html_writer::tag('h4', get_string('myresumereviews', 'local_jobportal'), array('class' => 'card-title mb-3'));
+echo html_writer::start_div('d-flex justify-content-between align-items-center mb-3');
+echo html_writer::tag('h4', get_string('myresumereviews', 'local_jobportal'), array('class' => 'card-title mb-0'));
+echo html_writer::tag(
+    'button',
+    '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+    array(
+        'type' => 'button',
+        'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+        'data-target' => '#jp-myreviews-filter-content-wrap',
+        'data-storage-key' => 'jp_myreviews_filters_hidden',
+        'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
+        'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+        'aria-expanded' => 'true',
+    )
+);
+echo html_writer::end_div();
 
+echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-myreviews-filter-content-wrap'));
 echo html_writer::start_tag('form', array('method' => 'get', 'action' => $baseurl, 'class' => 'mb-3'));
 echo html_writer::select($viewoptions, 'view', $viewfilter, false, array('class' => 'custom-select d-inline-block w-auto'));
 echo html_writer::tag('button', get_string('filter'), array('type' => 'submit', 'class' => 'btn btn-outline-primary ml-2'));
 echo html_writer::end_tag('form');
+echo html_writer::end_div(); // jp-filter-content-wrap
 
 echo html_writer::start_div('row');
 echo html_writer::tag(

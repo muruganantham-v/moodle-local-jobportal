@@ -1279,9 +1279,31 @@ if ($ismanager) {
         ),
     );
 
-    echo html_writer::start_div('card mb-3 jp-filter-card jp-sticky-filters');
+    echo html_writer::start_div('card mb-3 jp-filter-card jp-sticky-filters', array('id' => 'jp-jobs-filter-card'));
     echo html_writer::start_div('card-body');
-    echo html_writer::tag('h5', get_string('jobfilters', 'local_jobportal'), array('class' => 'card-title mb-2'));
+    echo html_writer::start_div('d-flex justify-content-between align-items-center mb-2');
+    echo html_writer::start_div('d-flex align-items-center gap-2');
+    echo html_writer::tag('h5', get_string('jobfilters', 'local_jobportal'), array('class' => 'card-title mb-0'));
+    if (!empty($activefilterchips)) {
+        echo html_writer::tag('span', get_string('filtersapplied', 'local_jobportal', count($activefilterchips)), array('class' => 'badge badge-primary ml-2 jp-filter-active-count'));
+    }
+    echo html_writer::end_div();
+    echo html_writer::tag(
+        'button',
+        '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+        array(
+            'type' => 'button',
+            'class' => 'btn btn-sm btn-outline-secondary jp-toggle-filters-btn',
+            'data-target' => '#jp-jobs-filter-content-wrap',
+            'data-storage-key' => 'jp_jobs_filters_hidden',
+            'data-show-text' => '👁️ ' . get_string('showfilters', 'local_jobportal'),
+            'data-hide-text' => '👁️ ' . get_string('hidefilters', 'local_jobportal'),
+            'aria-expanded' => 'true',
+        )
+    );
+    echo html_writer::end_div();
+
+    echo html_writer::start_div('jp-filter-content-wrap', array('id' => 'jp-jobs-filter-content-wrap'));
 
     echo html_writer::start_div('jp-preset-chipbar mb-3');
     echo html_writer::tag('span', get_string('presetfilters', 'local_jobportal'), array('class' => 'jp-chipbar-label'));
@@ -1488,6 +1510,7 @@ if ($ismanager) {
     echo html_writer::end_tag('details');
 
     echo html_writer::end_tag('form');
+    echo html_writer::end_div(); // end jp-filter-content-wrap
     if (!empty($activefilterchips)) {
         echo html_writer::start_div('jp-active-filters mt-3');
         echo html_writer::tag('span', get_string('activefilters', 'local_jobportal'), array('class' => 'jp-chipbar-label'));
